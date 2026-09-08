@@ -43,7 +43,7 @@ def main(argv=None):
             if not sys.stdin.isatty():
                 raise ValueError('Run this command in your own terminal for a hidden password prompt, or set MYSQL_PASSWORD locally. No password argument is accepted.')
             password=getpass.getpass(f'MySQL password for {args.user}@{args.host}:{args.port}: ')
-        config=Config(host=args.host,port=args.port,user=args.user,password=password,database=args.database)
+        config=Config(host=args.host,port=args.port,user=args.user,password=password,database=args.database,ssl_ca=os.environ.get('MYSQL_SSL_CA') or None)
         try:
             if args.command=='init-db':
                 initialize(config)

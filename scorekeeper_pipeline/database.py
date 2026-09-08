@@ -18,6 +18,7 @@ class Config:
     user: str = 'root'
     password: str = field(default='',repr=False)
     database: str = 'scorekeeper'
+    ssl_ca: str | None = None
 
     def __post_init__(self):
         if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}',self.database) or self.database.lower() in ('mysql','sys','information_schema','performance_schema'):
@@ -37,6 +38,7 @@ def connect(config: Config, *, with_database=True):
     return pymysql.connect(host=config.host,port=config.port,user=config.user,password=config.password,
         database=config.database if with_database else None,charset='utf8mb4',cursorclass=DictCursor,
         autocommit=False,connect_timeout=5,read_timeout=20,write_timeout=20,
+        ssl_ca=config.ssl_ca,ssl_verify_cert=bool(config.ssl_ca),ssl_verify_identity=bool(config.ssl_ca),
         init_command="SET SESSION sql_mode='STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'")
 
 def initialize(config: Config):

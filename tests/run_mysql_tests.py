@@ -31,8 +31,8 @@ try:
             time.sleep(.2)
     else:raise RuntimeError('Temporary MySQL did not become ready.')
     print(f'Running integration tests on isolated localhost:{port}; user localhost:3306 is untouched.',flush=True)
-    env={**os.environ,'SCOREKEEPER_TEST_PORT':str(port),'PYTHONUTF8':'1'}
-    result=subprocess.run([sys.executable,'-m','unittest','discover','-s','tests','-p','test_mysql_integration.py','-v'],cwd=ROOT,env=env)
+    env={**os.environ,'SCOREKEEPER_TEST_PORT':str(port),'PYTHONUTF8':'1','PYTHONPATH':str(ROOT/'tests')+os.pathsep+str(ROOT)}
+    result=subprocess.run([sys.executable,'-m','unittest','tests.test_mysql_integration','tests.test_remote_mysql','-v'],cwd=ROOT,env=env)
     sys.exit(result.returncode)
 finally:
     if process is not None and process.poll() is None:
