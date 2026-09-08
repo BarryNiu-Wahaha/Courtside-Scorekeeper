@@ -1,4 +1,4 @@
-﻿# Final resolution at `d6e3bb5`
+# Final resolution at `d6e3bb5`
 
 All four findings in this scoped frontend review are resolved. The final P1 follow-up in `1d8ae3e..d6e3bb5` persists `uncertain=true` before dispatch, retains prior uncertainty separately for the current attempt, and preserves the lock after a reload followed by a definitive rejected retry. A genuinely first attempt with definitive rejection still unlocks. Authentication failure before preparation remains safe. No regression found in this scoped final check.
 
@@ -54,5 +54,3 @@ Scope: `df2837a..512db95`, approved remote-upload design, recorder integration, 
 ## Review observations
 
 Game corrections retain the loaded `detail.version` rather than replacing it on list refresh, so a stale editor still sends its original expected version. A 409 leaves its input model available; server enforcement must be verified in the backend integration suite. The publisher builds into a fresh temporary directory, explicitly selects public fields/files, normalizes guest identity, passes credentials through the child environment, and suppresses deployment output in raised errors. No concrete secret leak was found in these inspected paths. Actual provider deployment, publication ordering, backend authorization, and database snapshot consistency remain outside this frontend/mock-transport review.
-
-
