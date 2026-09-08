@@ -1,6 +1,43 @@
-# CourtSide — offline basketball scorekeeper
+# CourtSide — basketball scorekeeping and team statistics
 
-Open **Front.html** in a modern browser. The HTML contains all its styles, JavaScript and roster; it does not load CDNs or call an API. The original is preserved in `backups/Front.original.html`.
+CourtSide is a basketball scorekeeping and statistics platform for one university team. Multiple scorekeepers use individual accounts, with one scorekeeper responsible for each game. The platform connects courtside recording to a hosted Python backend, a shared MySQL database, and a statistics website.
+
+## Features
+
+- Record shots, rebounds, assists, steals, blocks, turnovers, fouls, and opponent statistics.
+- Manage permanent player identities, enrollment years, graduation status, and game-specific guests.
+- Select squads and starters, make substitutions, and track playing minutes.
+- Preserve event history and apply corrections without double-counting plays.
+- Upload game data remotely from authorized scorekeeper accounts.
+- Save games locally while offline and synchronize when connectivity returns.
+- View game results, player statistics, shooting percentages, and minutes on the statistics website.
+- Export CSV files for analysis and JSON backups for restoring the local workspace.
+
+## Remote workflow
+
+1. A scorekeeper signs in and records a game for the team.
+2. The app saves events, squad selections, and playing time locally.
+3. The scorekeeper uploads the saved game when connected to the internet.
+4. The hosted Python backend checks access, validates and converts the data, and writes it into MySQL automatically.
+5. The statistics website displays the stored results through the backend.
+
+Repeated submissions do not create duplicate events. Corrections preserve the game's identity and history. Scorekeepers do not need to export CSVs or run Python commands for remote uploads.
+
+The backend and database run on remote hosting, so a scorekeeper's personal computer does not need to stay on. Database credentials remain on the server; the browser communicates with the backend.
+
+## Architecture
+
+| Component | Responsibility |
+| --- | --- |
+| Scorekeeper frontend | Recording, roster selection, substitutions, local saving, and uploads |
+| Hosted Python backend | Account access, validation, data conversion, and database writes |
+| MySQL database | Shared player, game, event, and participation records |
+| Statistics website | Game results, player totals, shooting percentages, and minutes |
+| Python CSV importer | Local imports from exported files |
+
+## Standalone scorekeeper
+
+Open **Front.html** in a modern browser to use the standalone offline scorekeeper. The instructions below cover this standalone version and its local CSV workflow. The HTML contains all its styles, JavaScript and roster; it does not load CDNs or call an API. The original is preserved in `backups/Front.original.html`.
 
 ## Record a game
 
@@ -58,7 +95,7 @@ game_id,event_id,game_date,opponent,player_id,player_name,jersey_number,quarter,
 OFF_REBOUND  DEF_REBOUND  ASSIST  STEAL  BLOCK  TURNOVER  FOUL
 ```
 
-The MySQL importer is now available: see [CSV → Python → MySQL setup](docs/mysql-pipeline.md). It uses your `msba` environment and defaults to `localhost:3306`, database `scorekeeper`.
+For local CSV imports, see [CSV → Python → MySQL setup](docs/mysql-pipeline.md). It uses your `msba` environment and defaults to `localhost:3306`, database `scorekeeper`.
 
 For a simple CSV-only analysis without extra dependencies:
 
@@ -72,14 +109,28 @@ active = [e for e in events if e["is_voided"] == "false"]
 our_points = sum(int(e["points_value"]) for e in active if e["team_side"] == "HOME")
 ```
 
-Repeated exports of the same game retain event IDs. The MySQL importer deduplicates by `(game_id, event_id)` and applies void flags so corrected exports do not double count points or retain cancelled plays. It rejects conflicting immutable data and prevents older exports from reactivating voided plays. The API and public statistics website are later phases.
+Repeated exports of the same game retain event IDs. The MySQL importer deduplicates by `(game_id, event_id)` and applies void flags so corrected exports do not double count points or retain cancelled plays. It rejects conflicting immutable data and prevents older exports from reactivating voided plays.
+
+## Database records
+
+| Table | Stored data |
+| --- | --- |
+| `players` | Permanent player identities, roster details, and enrollment information |
+| `games` | Game identifiers, dates, and opponents |
+| `events` | Individual plays, player snapshots, points, and void flags |
+| `game_participation` | Designated players, starters, appearances, and `played_ms` |
+| `participation_snapshots` | Participation revision, coverage, and content hash |
+
+`played_ms` stores playing time in milliseconds; divide by `60000` to obtain minutes. Partial coverage identifies games where only part of the playing time was tracked.
+
+For the local CSV workflow, import the event log and participation CSV for each game. Import the roster initially and whenever player details change.
 
 ## Development and verification
 
 Node 24 is used for the development scripts; the app itself does not need Node.
 
 ```sh
-node --test tests/engine.test.cjs
+node --test tests/engine.test.cjs tests/team.test.cjs
 node build.cjs
 node tests/browser-smoke.cjs
 ```
