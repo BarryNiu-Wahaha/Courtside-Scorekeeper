@@ -47,4 +47,3 @@ def validate_upload(document):
     return Bundle(normalized,events,participation,*meta)
 
 def validate_roster_csv(text): return _read(text,read_roster,'roster.csv')
-

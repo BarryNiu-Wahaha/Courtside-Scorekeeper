@@ -92,4 +92,3 @@ class RemoteMySQLTests(unittest.TestCase):
         self.repo.set_deleted('G_REMOTE_1',1,True);self.assertEqual(self.repo.snapshot()['games'],[])
 
 if __name__=='__main__':unittest.main()
-

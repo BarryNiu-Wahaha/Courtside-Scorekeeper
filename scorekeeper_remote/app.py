@@ -105,4 +105,3 @@ def create_app(repository=None,publisher=None,config=None):
 def _repository_from_env():
     from .repository import MySQLRepository
     return MySQLRepository.from_env()
-
