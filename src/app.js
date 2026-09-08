@@ -210,7 +210,7 @@
   $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
   $('upload-form').addEventListener('submit',async event=>{
     event.preventDefault();if(uploadBusy)return;const g=current();if(!g?.finished)return;
-    uploadBusy=true;$('upload-submit').disabled=true;renderRemote();let submissionStarted=false,newlyPrepared=false;
+    uploadBusy=true;$('upload-submit').disabled=true;renderRemote();let submissionStarted=false,newlyPrepared=false,priorUncertainty=false;
     try{
       if(saveBlocked)throw Error('Restore saving before uploading. Download a backup to preserve this game.');
       if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);
@@ -219,6 +219,7 @@
       await remoteClient.login(pin,'scorekeeper');
       newlyPrepared=!g.remote;
       const payload=RemoteClient.prepare(g,E,T);
+      priorUncertainty=RemoteClient.begin(g);
       localStorage.setItem(KEY,JSON.stringify(state));
       submissionStarted=true;
       const result=await remoteClient.upload(payload);
@@ -226,7 +227,7 @@
       g.remote.state='uploaded';g.remote.version=result.version;g.remote.publication=result.publication;
       save();$('upload-status').textContent=result.publication==='published'?'Game uploaded and statistics published.':'Game saved in the database. Public statistics are awaiting publication; your admin can retry.';
       toast('Game uploaded. Only your admin can change the official record.');
-    }catch(error){if(submissionStarted)RemoteClient.failed(g,error);else if(newlyPrepared)delete g.remote;save();$('upload-status').textContent=error.message+' Your local game is retained.';toast(error.message,true);}
+    }catch(error){if(submissionStarted)RemoteClient.failed(g,error,priorUncertainty);else if(newlyPrepared)delete g.remote;save();$('upload-status').textContent=error.message+' Your local game is retained.';toast(error.message,true);}
     finally{if(remoteClient)remoteClient.token=null;uploadBusy=false;$('upload-submit').disabled=false;render();}
   });
   $('server-roster-button').addEventListener('click',async()=>{

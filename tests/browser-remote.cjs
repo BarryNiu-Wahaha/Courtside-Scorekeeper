@@ -25,7 +25,7 @@ window.fetch=async function(url,options={}){
  const response=data=>Promise.resolve({ok:true,status:200,json:async()=>structuredClone(data)});
  const rejected=(status,error)=>Promise.resolve({ok:false,status,json:async()=>({error})});
  if(route==='/api/session'){if(window.__denyLogin)return rejected(401,'Invalid PIN');return response({token:'test-session',role:body.role});}
- if(route==='/api/games'){if(window.__rejectUpload)return rejected(400,'Invalid participation');window.__uploads.push(body);if(window.__failUpload){window.__failUpload=false;throw TypeError('Connection interrupted');}return response({game_id:${JSON.stringify(g.id)},version:1,publication:'pending'});}
+ if(route==='/api/games'){if(window.__rejectUpload)return rejected(400,'Invalid participation');window.__uploads.push(body);if(window.__hangUpload)return new Promise(()=>{});if(window.__failUpload){window.__failUpload=false;throw TypeError('Connection interrupted');}return response({game_id:${JSON.stringify(g.id)},version:1,publication:'pending'});}
  if(route==='/api/admin/games')return response({games:[{game_id:${JSON.stringify(g.id)},game_date:'2026-09-08',opponent:'Remote Hawks',version:1,deleted:false}],publication:{status:'pending'}});
  if(route==='/api/admin/roster'||route==='/api/roster'){if(options.method==='PUT'){if(window.__expireRoster){window.__expireRoster=false;return rejected(401,'Session expired');}window.__rosterSaving=true;await new Promise(r=>setTimeout(r,500));window.__adminWrites.push(body);return response({publication:'pending'});}return response({players:${JSON.stringify(apiRoster)}});}
  if(route==='/api/admin/publish')return response({publication:'published'});
@@ -47,6 +47,12 @@ window.fetch=async function(url,options={}){
  await click('#game-list button');assert.ok((await evaluate("document.querySelector('#box-table').textContent")).includes('牛天齐'));await click('#box-close');
  fs.writeFileSync(path.join(artifacts,'remote-public.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  await send('Page.navigate',{url:base+'/Front.html'});await until("!!document.querySelector('#setup-dialog')?.open");
+ await evaluate(`localStorage.setItem('courtside.v2',${JSON.stringify(JSON.stringify({version:2,roster,games:[g],currentGameId:g.id}))})`);await send('Page.reload');await until("document.querySelector('#clock-status')?.textContent==='FINAL'");
+ await click('#upload-button');await evaluate('window.__hangUpload=true');await value('#upload-pin','12345678');await click('#upload-submit');await until('window.__uploads.length===1');
+ assert.equal(await evaluate("JSON.parse(localStorage.getItem('courtside.v2')).games[0].remote.uncertain"),true);
+ await send('Page.reload');await until("document.querySelector('#upload-button')?.textContent==='Retry upload'");await evaluate('window.__rejectUpload=true');
+ await click('#upload-button');await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Invalid participation')");
+ assert.equal(await evaluate("document.querySelector('#finish-button').disabled"),true);
  await evaluate(`localStorage.setItem('courtside.v2',${JSON.stringify(JSON.stringify({version:2,roster,games:[g],currentGameId:g.id}))})`);await send('Page.reload');await until("document.querySelector('#clock-status')?.textContent==='FINAL'");
  await click('#upload-button');await evaluate('window.__denyLogin=true');await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Invalid PIN')");
  assert.equal(await evaluate("!!JSON.parse(localStorage.getItem('courtside.v2')).games[0].remote"),false);
