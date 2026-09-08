@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CourtSide · Team statistics</title><link rel="stylesheet" href="site.css"><script defer src="remote.js"></script><script defer src="public.js"></script></head>
+<body><header><a href="index.html"><strong>CourtSide</strong></a><nav><a href="#games">Games</a><a href="#players">Players</a><a href="Front.html">Scorekeeper</a><a href="admin.html">Admin</a></nav></header>
+<main><p class="eyebrow">One team. Every play.</p><h1>Our season, by the numbers.</h1><p class="muted" id="published">Loading published results…</p><div id="load-status" role="status"></div>
+<section class="metrics" aria-label="Team results"><div class="panel metric">Games<strong id="game-count">—</strong></div><div class="panel metric">Wins–Losses–Ties<strong id="record">—</strong></div><div class="panel metric">Team points<strong id="points">—</strong></div></section>
+<section class="panel" id="games"><h2>Game results</h2><div class="games" id="game-list"></div></section>
+<section class="panel" id="players"><h2>Player totals</h2><p class="muted">Minutes marked * include partial or unavailable tracking. Guest Player combines all guests.</p><div class="table-wrap" id="player-table"></div></section>
+<dialog id="box-dialog"><div class="actions"><h2 id="box-title"></h2><button id="box-close" class="secondary">Close</button></div><p id="box-note" class="muted"></p><div class="table-wrap" id="box-table"></div></dialog></main>
+<footer>Published game results remain available independently of the upload service.</footer></body></html>

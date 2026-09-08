@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -42,7 +42,7 @@
         <div class="clock-panel"><div class="clock-caption"><span id="period-label">QUARTER 1</span><span id="clock-status" class="pill">READY</span></div><div id="clock-display" class="clock-display" role="timer" aria-label="Remaining game time">10:00</div><div class="clock-actions"><button id="clock-button" class="button clock-start">▶ Start game</button><button id="adjust-button" class="button clock-edit" aria-label="Adjust game clock">Adjust</button></div><button id="period-button" class="text-button">Next quarter →</button></div>
         <div class="team away-team"><strong id="away-score" class="score">0</strong><div class="team-title"><span id="opponent-name">OPPONENT</span><small>Opposing team</small></div><span class="team-badge away">A</span></div>
       </section>
-      <div class="workspace-bar"><div class="tabs" role="tablist" aria-label="Game views"><button id="live-tab" class="tab active" role="tab" aria-selected="true" aria-controls="live-view">Live tracker</button><button id="box-tab" class="tab" role="tab" aria-selected="false" aria-controls="box-view">Box score</button></div><div class="workspace-tools"><button id="finish-button" class="text-button">End game</button><button id="export-button" class="button export">↓ <span>Export Game Event Log</span></button></div></div>
+      <div class="workspace-bar"><div class="tabs" role="tablist" aria-label="Game views"><button id="live-tab" class="tab active" role="tab" aria-selected="true" aria-controls="live-view">Live tracker</button><button id="box-tab" class="tab" role="tab" aria-selected="false" aria-controls="box-view">Box score</button></div><div class="workspace-tools"><button id="upload-button" class="button subtle" hidden>Upload finished game</button><button id="finish-button" class="text-button">End game</button><button id="export-button" class="button export">↓ <span>Export Game Event Log</span></button></div></div>
       <section id="live-view" class="live-grid" role="tabpanel" aria-labelledby="live-tab">
         <aside class="panel roster-panel"><div class="panel-heading"><h2>On court <span id="roster-count" class="count">0</span></h2><button id="roster-button" class="text-button">Manage</button></div><p class="panel-hint">Tap a player to record their next play.</p><button id="lineup-button" class="button subtle full">Choose game players</button><div id="roster-list" class="roster-list"></div></aside>
         <section class="panel actions-panel" aria-label="Record basketball stats"><div class="action-top"><div class="segmented" aria-label="Team to record"><button id="home-side" class="active" aria-pressed="true">Our team</button><button id="away-side" aria-pressed="false">Opponent</button></div><span class="tiny-note">ONE TAP. ONE PLAY.</span></div><div id="selected-player" class="selected-player"></div><div class="section-label">SHOOTING <span>Made or missed. Every attempt counts.</span></div><div class="shot-grid">
@@ -62,12 +62,13 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="setup-dialog"><form id="setup-form"><div class="dialog-heading"><div><div class="eyebrow">LET’S PLAY</div><h2>Set up your game</h2></div><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Your roster is ready. Just add the game details.</p><label>Opponent<input id="setup-opponent" name="opponent" required maxlength="100" placeholder="e.g. Northside Hawks" autocomplete="off"></label><label>Game date<input id="setup-date" type="date" required></label><div class="form-row"><label>Quarter length (min)<input id="setup-minutes" type="number" min="1" max="99" step="1" value="10" required></label><label>Overtime length (min)<input id="setup-ot" type="number" min="1" max="99" step="1" value="5" required></label></div><p class="form-note">Four regular quarters, then overtime as needed. Previous games stay in Game history.</p><button class="button dark full" type="submit">Create game →</button></form></dialog>
   <dialog id="clock-dialog"><form id="clock-form"><div class="dialog-heading"><h2>Adjust game clock</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Match the official scoreboard. Earlier events keep their recorded times.</p><label>Time remaining (MM:SS)<input id="clock-input" type="text" inputmode="decimal" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="06:31" required></label><button class="button dark full" type="submit">Set time</button></form></dialog>
-  <dialog id="roster-dialog"><div class="dialog-heading"><div><div class="eyebrow">OUR TEAM</div><h2>Manage roster</h2></div><button class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Player IDs stay the same when names or jersey numbers change. Existing event records stay unchanged.</p><div class="form-actions"><button id="roster-import-button" class="button subtle">Import roster CSV</button><button id="roster-export-button" class="button subtle">Export roster CSV</button></div><p class="form-note">CSV: player_id, player_name, jersey_number, enrollment_year, status_override. Export includes permanent IDs for database import.</p><form id="player-form"><input id="editing-player" type="hidden"><div class="form-row player-form-row"><label>Player name<input id="player-name" required maxlength="100" placeholder="Name"></label><label>Jersey #<input id="player-number" type="number" min="0" max="99" step="1" required placeholder="7"></label></div><div class="form-row"><label>Enrollment year<input id="player-year" type="number" min="1900" max="9995" step="1" placeholder="Unknown"></label><label>Status override<select id="player-status"><option value="">Automatic</option><option value="Astudent">Astudent</option><option value="graduated">graduated</option></select></label></div><p class="form-note">Automatic graduation: September 1, four years after enrollment. All statuses can play. Changes apply to future games.</p><div class="form-actions"><button id="save-player" class="button dark" type="submit">Add player</button><button id="cancel-edit" class="button subtle" type="button" hidden>Cancel edit</button></div></form><div id="manage-list" class="manage-list"></div></dialog>
+  <dialog id="roster-dialog"><div class="dialog-heading"><div><div class="eyebrow">OUR TEAM</div><h2>Manage roster</h2></div><button class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Player IDs stay the same when names or jersey numbers change. Existing event records stay unchanged.</p><div class="form-actions"><button id="roster-import-button" class="button subtle">Import roster CSV</button><button id="server-roster-button" class="button subtle" hidden>Download shared roster</button><button id="roster-export-button" class="button subtle">Export roster CSV</button></div><p class="form-note">CSV: player_id, player_name, jersey_number, enrollment_year, status_override. Export includes permanent IDs for database import.</p><form id="player-form"><input id="editing-player" type="hidden"><div class="form-row player-form-row"><label>Player name<input id="player-name" required maxlength="100" placeholder="Name"></label><label>Jersey #<input id="player-number" type="number" min="0" max="99" step="1" required placeholder="7"></label></div><div class="form-row"><label>Enrollment year<input id="player-year" type="number" min="1900" max="9995" step="1" placeholder="Unknown"></label><label>Status override<select id="player-status"><option value="">Automatic</option><option value="Astudent">Astudent</option><option value="graduated">graduated</option></select></label></div><p class="form-note">Automatic graduation: September 1, four years after enrollment. All statuses can play. Changes apply to future games.</p><div class="form-actions"><button id="save-player" class="button dark" type="submit">Add player</button><button id="cancel-edit" class="button subtle" type="button" hidden>Cancel edit</button></div></form><div id="manage-list" class="manage-list"></div></dialog>
   <dialog id="history-dialog"><div class="dialog-heading"><div><div class="eyebrow">THE SEASON SO FAR</div><h2>Game history</h2></div><button class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Open a game to review its plays, export data, or continue recording.</p><div id="history-list" class="history-list"></div></dialog>
   <dialog id="confirm-dialog"><div class="dialog-heading"><h2 id="confirm-title">Confirm</h2><button class="close-button" data-close aria-label="Close">×</button></div><p id="confirm-text" class="dialog-description"></p><div class="confirm-actions"><button class="button subtle" data-close>Cancel</button><button id="confirm-yes" class="button dark">Continue</button></div></dialog>
   <dialog id="lineup-dialog"><div class="dialog-heading"><h2 id="lineup-title">Choose squad and starters</h2><button class="close-button" data-close aria-label="Cancel player selection">×</button></div><p id="lineup-description" class="dialog-description"></p><p id="lineup-count" class="form-note" aria-live="polite"></p><div id="squad-list"></div><form id="guest-form"><h3>Add a guest for this game</h3><p class="panel-hint">Individual guests stay on this device. Their database stats combine as Guest Player.</p><div class="form-row player-form-row"><label>Guest name<input id="guest-name" required maxlength="100"></label><label>Jersey #<input id="guest-number" type="number" min="0" max="99" step="1" required></label></div><button id="add-guest" class="button subtle" type="submit">Add guest</button></form><div class="lineup-actions"><button class="button subtle" data-close>Cancel</button><button id="lineup-confirm" class="button dark">Confirm five</button></div></dialog>
   <input id="roster-file" type="file" accept=".csv,text/csv" hidden>
   <input id="restore-file" type="file" accept=".json,application/json" hidden>
+  <dialog id="upload-dialog"><form id="upload-form"><h2>Upload finished game</h2><p id="upload-status" class="dialog-description" role="status"></p><label>Scorekeeper PIN<input id="upload-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" required></label><div class="actions"><button id="upload-submit" type="submit" class="button dark">Upload game</button><button type="button" class="button subtle" data-close>Close</button></div></form></dialog>
   <script>(function(root){
   'use strict';
   const GUEST='P_GUEST';
@@ -302,6 +303,58 @@ globalThis.DEFAULT_ROSTER = [
                 { name: "王世峣", number: 32 }
             ];
 
+(function(root){
+'use strict';
+const statKeys=['points','fgm','fga','threeMade','threeAttempts','ftm','fta','offensive','defensive','rebounds','assists','steals','blocks','turnovers','fouls'];
+function csv(columns,rows){const escape=v=>/[",\r\n]/.test(String(v??''))?'"'+String(v??'').replaceAll('"','""')+'"':String(v??'');return '\uFEFF'+columns.join(',')+'\r\n'+rows.map(r=>columns.map(k=>escape(r[k])).join(',')+'\r\n').join('');}
+function parseCSV(text){
+  text=String(text).replace(/^\uFEFF/,'');const records=[];let row=[],value='',quoted=false,closed=false;
+  for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'){if(text[i+1]==='"'){value+='"';i++;}else{quoted=false;closed=true;}}else value+=c;}
+    else if(c==='"'){if(value||closed)throw Error('Invalid CSV quotation.');quoted=true;}
+    else if(c===','){row.push(value);value='';closed=false;}
+    else if(c==='\r'||c==='\n'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);records.push(row);row=[];value='';closed=false;}
+    else{if(closed)throw Error('Invalid CSV after quote.');value+=c;}
+  }
+  if(quoted)throw Error('Unclosed CSV quotation.');if(value||row.length||closed){row.push(value);records.push(row);}
+  const columns=records.shift()||[];if(!columns.length||new Set(columns).size!==columns.length)throw Error('Invalid CSV headers.');
+  return {columns,rows:records.map(r=>{if(r.length!==columns.length)throw Error('Invalid CSV field count.');return Object.fromEntries(columns.map((c,i)=>[c,r[i]]));})};
+}
+function prepare(game,E,T){
+  if(!game?.finished)throw Error('Finish this game before uploading.');
+  if(game.remote?.payload)return game.remote.payload;
+  const payload={schema_version:1,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game)};
+  game.remote={state:'pending',payload};return payload;
+}
+class Client{
+  constructor(base,transport=root.fetch?.bind(root)){
+    let url;try{url=new URL(base);}catch{throw Error('Configure a valid backend URL.');}
+    if(url.username||url.password||url.search||url.hash)throw Error('Backend URL must not contain credentials, a query, or a fragment.');
+    if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('Use HTTPS for the backend URL.');
+    this.base=url.href.replace(/\/$/,'');this.transport=transport;this.token=null;
+  }
+  async request(path,method='GET',body){
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),240000);
+    try{
+      const response=await this.transport(this.base+path,{method,headers:{'Content-Type':'application/json',...(this.token?{Authorization:'Bearer '+this.token}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:controller.signal,cache:'no-store'});
+      let data;try{data=await response.json();}catch{throw Error('The backend is starting or unavailable. Your data is safe; try again shortly.');}
+      if(!response.ok){const error=Error(data.error||'Request failed.');error.status=response.status;if(response.status===401)this.token=null;throw error;}
+      return data;
+    }catch(error){if(error.name==='AbortError')throw Error('The upload timed out. Your game remains saved; retry to check whether it was received.');throw error;}
+    finally{clearTimeout(timer);}
+  }
+  async login(pin,role){const data=await this.request('/api/session','POST',{pin,role});this.token=data.token;return data;}
+  upload(payload){return this.request('/api/games','POST',payload);}
+}
+function totals(snapshot){
+  const players=new Map((snapshot.roster||[]).map(p=>[p.player_id,{...p,appearances:0,played_ms:0,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))}]));
+  let wins=0,losses=0,ties=0;
+  for(const g of snapshot.games||[]){if(g.home_points>g.away_points)wins++;else if(g.home_points<g.away_points)losses++;else ties++;
+    for(const p of g.players||[]){if(!players.has(p.player_id))players.set(p.player_id,{...p,appearances:0,played_ms:0,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))});const total=players.get(p.player_id);total.appearances+=Number(p.played_count||0);total.played_ms+=Number(p.played_ms||0);total.partial||=g.coverage!=='complete'||p.played_ms==null;for(const k of statKeys)total.stats[k]+=Number(p.stats?.[k]||0);}
+  }return {wins,losses,ties,players:[...players.values()]};
+}
+const api={Client,prepare,csv,parseCSV,totals,statKeys};if(typeof module==='object'&&module.exports)module.exports=api;root.RemoteClient=api;
+})(globalThis);
+
 (() => {
   'use strict';
   const E=ScoreEngine, T=TeamEngine, KEY='courtside.v2';
@@ -377,7 +430,7 @@ globalThis.DEFAULT_ROSTER = [
     $('export-button').disabled=!g;$('finish-button').disabled=!g;
     $('finish-button').textContent=g?.finished?'Reopen game':'End game';
     for(const id of ['clock-button','adjust-button','period-button'])$(id).disabled=!g;
-    renderClock();renderBox();
+    renderClock();renderBox();renderRemote();
   }
   function renderBox(){
     const g=current();if(!g){$('box-table').innerHTML='<div class="empty-state">Create a game to see your team stats.</div>';return;}
@@ -404,6 +457,7 @@ globalThis.DEFAULT_ROSTER = [
   });});
   $('finish-button').addEventListener('click',()=>{
     const g=current();if(!g)return;
+    if(g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
     if(g.finished){run(()=>{g.finished=false;toast('Game reopened. The clock is paused.');});return;}
     confirm('Finish this game?','The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',()=>run(()=>{E.pause(g);g.finished=true;toast('Final whistle. Your event log is ready to export.');}));
   });
@@ -500,6 +554,45 @@ globalThis.DEFAULT_ROSTER = [
     $('history-list').innerHTML=[...state.games].reverse().map(g=>`<div class="history-card"><div><strong>vs ${html(g.opponent)}</strong><small>${html(g.date)} · ${g.finished?'Final':g.started?'In progress':'Ready'}<br>Our team ${E.stats(g,'HOME').points} – ${E.stats(g,'AWAY').points} Opponent · ${g.gameEvents.length} events</small></div><button class="button subtle" data-game="${html(g.id)}">Open</button></div>`).join('')||'<div class="empty-state">Your games will appear here.</div>';open('history-dialog');
   });
   $('history-list').addEventListener('click',e=>{const b=e.target.closest('[data-game]');if(!b)return;run(()=>{if(current()?.running)E.pause(current());state.currentGameId=b.dataset.game;selectedId=null;side='HOME';$('history-dialog').close();});});
+
+  // The hosted build injects only a public API address. PINs/tokens stay in memory.
+  const remoteBase=globalThis.COURTSIDE_CONFIG?.apiBase||'';
+  let remoteClient=null,uploadBusy=false;
+  function renderRemote(){
+    const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';
+    $('upload-button').textContent=uploadBusy?'Uploading…':g?.remote?.state==='uploaded'?'Uploaded':g?.remote?.state==='pending'?'Retry upload':'Upload finished game';
+    if(g?.remote){$('finish-button').disabled=true;$('finish-button').textContent=g.remote.state==='uploaded'?'Uploaded · admin edits only':'Upload pending · game locked';}
+  }
+  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
+  $('upload-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(uploadBusy)return;const g=current();if(!g?.finished)return;
+    uploadBusy=true;$('upload-submit').disabled=true;renderRemote();
+    try{
+      if(saveBlocked)throw Error('Restore saving before uploading. Download a backup to preserve this game.');
+      if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);
+      const payload=RemoteClient.prepare(g,E,T);
+      // Persist before sending: a lost response must retry exactly this submission.
+      localStorage.setItem(KEY,JSON.stringify(state));
+      const pin=$('upload-pin').value;$('upload-pin').value='';
+      $('upload-status').textContent='Connecting… A sleeping backend can take about a minute to start.';
+      await remoteClient.login(pin,'scorekeeper');
+      const result=await remoteClient.upload(payload);
+      if(result.game_id!==g.id)throw Error('The server returned an unexpected game. Retry to confirm receipt.');
+      g.remote.state='uploaded';g.remote.version=result.version;g.remote.publication=result.publication;
+      save();$('upload-status').textContent=result.publication==='published'?'Game uploaded and statistics published.':'Game saved in the database. Public statistics are awaiting publication; your admin can retry.';
+      toast('Game uploaded. Only your admin can change the official record.');
+    }catch(error){save();$('upload-status').textContent=error.message+' Your local game is retained.';toast(error.message,true);}
+    finally{if(remoteClient)remoteClient.token=null;uploadBusy=false;$('upload-submit').disabled=false;render();}
+  });
+  $('server-roster-button').addEventListener('click',async()=>{
+    try{if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);const result=await remoteClient.request('/api/roster');
+      const csv=RemoteClient.csv(['player_id','player_name','jersey_number','enrollment_year','status_override'],result.players);
+      const merged=T.parseRoster(csv,state.roster);
+      confirm('Use the shared team roster?', 'Update this device’s roster from the server for future games? Existing games keep their original players.',()=>run(()=>{state.roster=merged;manage();toast('Shared roster downloaded.');}));
+    }catch(error){toast(error.message,true);}
+  });
+
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderClock();});
   setInterval(renderClock,200);
   render();

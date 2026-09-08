@@ -1,0 +1,14 @@
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id),R=RemoteClient;
+const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
+const percent=(made,attempts)=>attempts?(100*made/attempts).toFixed(1)+'%':'—';
+function table(players,box=false){const table=el('table'),head=el('thead'),tr=el('tr');['Player',box?'Played':'GP','MIN','PTS','FG','FG%','3PT','3PT%','FT','FT%','REB','AST','STL','BLK','TO','PF'].forEach(h=>tr.append(el('th',h)));head.append(tr);table.append(head);const body=el('tbody');
+for(const p of players){const s=p.stats||{},v=k=>Number(s[k]||0),r=el('tr');const minutes=p.played_ms==null?'—':(p.played_ms/60000).toFixed(1)+(p.partial?'*':'');[p.player_name,box?p.played_count:p.appearances,minutes,v('points'),v('fgm')+'/'+v('fga'),percent(v('fgm'),v('fga')),v('threeMade')+'/'+v('threeAttempts'),percent(v('threeMade'),v('threeAttempts')),v('ftm')+'/'+v('fta'),percent(v('ftm'),v('fta')),v('rebounds'),v('assists'),v('steals'),v('blocks'),v('turnovers'),v('fouls')].forEach(x=>r.append(el('td',x??'—')));body.append(r);}table.append(body);return table;}
+function render(snapshot){if(snapshot.schema_version!==1||!Array.isArray(snapshot.games))throw Error('Unsupported statistics snapshot.');const totals=R.totals(snapshot);$('published').textContent=snapshot.generated_at?'Last published '+new Date(snapshot.generated_at).toLocaleString():'No games published yet.';$('game-count').textContent=snapshot.games.length;$('record').textContent=[totals.wins,totals.losses,totals.ties].join('–');$('points').textContent=snapshot.games.reduce((n,g)=>n+g.home_points,0);
+$('player-table').replaceChildren(table(totals.players.sort((a,b)=>b.stats.points-a.stats.points)));$('game-list').replaceChildren();
+for(const g of [...snapshot.games].sort((a,b)=>b.game_date.localeCompare(a.game_date))){const card=el('article');card.className='game';const score=el('p',g.home_points+' – '+g.away_points);score.className='score';const button=el('button','Box score');button.onclick=()=>{$('box-title').textContent='vs '+g.opponent;$('box-note').textContent=g.game_date+' · '+(g.coverage==='complete'?'Complete minute tracking':'Partial or unavailable minute tracking');$('box-table').replaceChildren(table((g.players||[]).map(p=>({...p,partial:g.coverage!=='complete'})),true));$('box-dialog').showModal();};card.append(el('small',g.game_date),el('h3','vs '+g.opponent),score,button);$('game-list').append(card);}
+if(!snapshot.games.length)$('game-list').append(el('p','No games published yet.'));}
+$('box-close').onclick=()=>$('box-dialog').close();
+fetch('data/stats.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('Published results are not available yet.');return r.json();}).then(render).catch(e=>{$('load-status').className='status error';$('load-status').textContent=e.message;$('published').textContent='Results unavailable';});
+})();

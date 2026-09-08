@@ -73,7 +73,7 @@
     $('export-button').disabled=!g;$('finish-button').disabled=!g;
     $('finish-button').textContent=g?.finished?'Reopen game':'End game';
     for(const id of ['clock-button','adjust-button','period-button'])$(id).disabled=!g;
-    renderClock();renderBox();
+    renderClock();renderBox();renderRemote();
   }
   function renderBox(){
     const g=current();if(!g){$('box-table').innerHTML='<div class="empty-state">Create a game to see your team stats.</div>';return;}
@@ -100,6 +100,7 @@
   });});
   $('finish-button').addEventListener('click',()=>{
     const g=current();if(!g)return;
+    if(g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
     if(g.finished){run(()=>{g.finished=false;toast('Game reopened. The clock is paused.');});return;}
     confirm('Finish this game?','The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',()=>run(()=>{E.pause(g);g.finished=true;toast('Final whistle. Your event log is ready to export.');}));
   });
@@ -196,6 +197,45 @@
     $('history-list').innerHTML=[...state.games].reverse().map(g=>`<div class="history-card"><div><strong>vs ${html(g.opponent)}</strong><small>${html(g.date)} · ${g.finished?'Final':g.started?'In progress':'Ready'}<br>Our team ${E.stats(g,'HOME').points} – ${E.stats(g,'AWAY').points} Opponent · ${g.gameEvents.length} events</small></div><button class="button subtle" data-game="${html(g.id)}">Open</button></div>`).join('')||'<div class="empty-state">Your games will appear here.</div>';open('history-dialog');
   });
   $('history-list').addEventListener('click',e=>{const b=e.target.closest('[data-game]');if(!b)return;run(()=>{if(current()?.running)E.pause(current());state.currentGameId=b.dataset.game;selectedId=null;side='HOME';$('history-dialog').close();});});
+
+  // The hosted build injects only a public API address. PINs/tokens stay in memory.
+  const remoteBase=globalThis.COURTSIDE_CONFIG?.apiBase||'';
+  let remoteClient=null,uploadBusy=false;
+  function renderRemote(){
+    const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';
+    $('upload-button').textContent=uploadBusy?'Uploading…':g?.remote?.state==='uploaded'?'Uploaded':g?.remote?.state==='pending'?'Retry upload':'Upload finished game';
+    if(g?.remote){$('finish-button').disabled=true;$('finish-button').textContent=g.remote.state==='uploaded'?'Uploaded · admin edits only':'Upload pending · game locked';}
+  }
+  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
+  $('upload-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(uploadBusy)return;const g=current();if(!g?.finished)return;
+    uploadBusy=true;$('upload-submit').disabled=true;renderRemote();
+    try{
+      if(saveBlocked)throw Error('Restore saving before uploading. Download a backup to preserve this game.');
+      if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);
+      const payload=RemoteClient.prepare(g,E,T);
+      // Persist before sending: a lost response must retry exactly this submission.
+      localStorage.setItem(KEY,JSON.stringify(state));
+      const pin=$('upload-pin').value;$('upload-pin').value='';
+      $('upload-status').textContent='Connecting… A sleeping backend can take about a minute to start.';
+      await remoteClient.login(pin,'scorekeeper');
+      const result=await remoteClient.upload(payload);
+      if(result.game_id!==g.id)throw Error('The server returned an unexpected game. Retry to confirm receipt.');
+      g.remote.state='uploaded';g.remote.version=result.version;g.remote.publication=result.publication;
+      save();$('upload-status').textContent=result.publication==='published'?'Game uploaded and statistics published.':'Game saved in the database. Public statistics are awaiting publication; your admin can retry.';
+      toast('Game uploaded. Only your admin can change the official record.');
+    }catch(error){save();$('upload-status').textContent=error.message+' Your local game is retained.';toast(error.message,true);}
+    finally{if(remoteClient)remoteClient.token=null;uploadBusy=false;$('upload-submit').disabled=false;render();}
+  });
+  $('server-roster-button').addEventListener('click',async()=>{
+    try{if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);const result=await remoteClient.request('/api/roster');
+      const csv=RemoteClient.csv(['player_id','player_name','jersey_number','enrollment_year','status_override'],result.players);
+      const merged=T.parseRoster(csv,state.roster);
+      confirm('Use the shared team roster?', 'Update this device’s roster from the server for future games? Existing games keep their original players.',()=>run(()=>{state.roster=merged;manage();toast('Shared roster downloaded.');}));
+    }catch(error){toast(error.message,true);}
+  });
+
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderClock();});
   setInterval(renderClock,200);
   render();

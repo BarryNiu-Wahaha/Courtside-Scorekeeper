@@ -130,7 +130,8 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  for(const id of guestIds)await click(`[data-starter="${id}"]`);await click('#lineup-confirm');await click('#clock-button');await delay(100);await click('#clock-button');
  for(const id of guestIds){await click(`[data-player="${id}"]`);await click('[data-stat="3PT_MADE"]');}
  assert.equal(await evaluate('document.querySelector("#home-score").textContent'),'6');
- await click('#export-button');await click('#participation-export-button');await delay(200);
+ await click('#export-button');await click('#participation-export-button');
+ const downloadGame=await current();for(let i=0;i<100;i++){if(['_events.csv','_participation.csv'].every(suffix=>fs.existsSync(path.join(artifacts,downloadGame.id+suffix))))break;await delay(100);}
  const guestGame=await current(),guestCSV=fs.readFileSync(path.join(artifacts,guestGame.id+'_events.csv'),'utf8'),guestParticipation=fs.readFileSync(path.join(artifacts,guestGame.id+'_participation.csv'),'utf8');
  assert.equal(guestCSV.split('P_GUEST').length-1,2);assert.ok(!guestCSV.includes('Private Guest'));assert.ok(guestParticipation.includes('P_GUEST,Guest Player,0,2,2,2,'));assert.ok(!guestParticipation.includes('Private Guest'));assert.equal((await snapshot()).roster.length,27);
  await click('#lineup-button');await screenshot('substitution-popup',1194,834);await click('#lineup-dialog [data-close]');assert.equal((await current()).running,false);
