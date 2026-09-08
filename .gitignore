@@ -1,0 +1,10 @@
+tests/artifacts/
+__pycache__/
+*.pyc
+.env
+.local/
+backups/
+.env.*
+!.env.example
+.codex/
+.agents/
