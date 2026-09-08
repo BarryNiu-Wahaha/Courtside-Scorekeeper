@@ -30,7 +30,7 @@ window.fetch=async function(url,options={}){
  if(route==='/api/admin/roster'||route==='/api/roster'){if(options.method==='PUT'){if(window.__expireRoster){window.__expireRoster=false;return rejected(401,'Session expired');}window.__rosterSaving=true;await new Promise(r=>setTimeout(r,500));window.__adminWrites.push(body);return response({publication:'pending'});}return response({players:${JSON.stringify(apiRoster)}});}
  if(route==='/api/admin/publish')return response({publication:'published'});
  if(route.endsWith('/delete')||route.endsWith('/restore')){window.__adminWrites.push(body);return response({version:2,publication:'published'});}
- if(route.startsWith('/api/admin/games/')){if(options.method==='PUT'){window.__adminWrites.push(body);return response({version:2,publication:'pending'});}return response({game_id:${JSON.stringify(g.id)},version:1,deleted:false,upload:${JSON.stringify(upload)}});}
+ if(route.startsWith('/api/admin/games/')){if(options.method==='PUT'){window.__adminWrites.push(body);return response({version:2,publication:'pending'});}const doc={game_id:${JSON.stringify(g.id)},game_date:'2026-09-08',opponent:'Remote Hawks',version:1,deleted:false,upload:${JSON.stringify(upload)}};if(window.__legacyGame)doc.upload.participation_csv=doc.upload.participation_csv.split('\\r\\n')[0]+'\\r\\n';return response(doc);}
  throw Error('Unexpected mock route '+route);
 };
 `;
@@ -79,5 +79,11 @@ window.fetch=async function(url,options={}){
  const written=await evaluate('window.__adminWrites[1]');assert.equal(written.version,1);assert.ok(written.upload.events_csv.includes(',HOME,true'));assert.equal(await evaluate("document.querySelector('#admin-pin').value"),'');
  await click('#publish');await until("document.querySelector('#admin-status').textContent.includes('published')");
  fs.writeFileSync(path.join(artifacts,'remote-admin.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+ await click('#cancel-edit');await evaluate('window.__legacyGame=true');await click('#admin-games button');await until("!document.querySelector('#editor').hidden");
+ assert.equal(await evaluate("document.querySelector('#legacy-participation-note').hidden"),false);
+ assert.equal(await evaluate("document.querySelector('#edit-opponent').value"),'Remote Hawks');
+ await click('#save-game');await until("document.querySelector('#admin-status').textContent.includes('Import participation')");
+ await evaluate(`(()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(upload.participation_csv)}],'participation.csv',{type:'text/csv'}));const input=document.querySelector('#participation-file');input.files=dt.files;input.dispatchEvent(new Event('change'));})()`);
+ await until("document.querySelector('#legacy-participation-note').hidden");assert.equal(await evaluate("document.querySelectorAll('#participation-editor tbody tr').length"),5);
  assert.deepEqual(errors,[]);console.log('Remote Edge smoke passed: public snapshot/box score, failed upload retained, exact retry, uploaded lock survives reload, PIN not stored, admin correction and publication.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{if(ws?.readyState===1){try{await send('Browser.close');}catch{}ws.close();}child?.kill();server.close();await delay(500);if(path.dirname(profile)===artifacts&&path.basename(profile).startsWith('browser-profile-remote-')){try{fs.rmSync(profile,{recursive:true,force:true,maxRetries:3,retryDelay:200});}catch{}}});

@@ -1,6 +1,6 @@
 # CourtSide — basketball scorekeeping and team statistics
 
-CourtSide is a basketball scorekeeping and statistics platform for one university team. Multiple scorekeepers use individual accounts, with one scorekeeper responsible for each game. The platform connects courtside recording to a hosted Python backend, a shared MySQL database, and a statistics website.
+CourtSide is a basketball scorekeeping and statistics platform for one university team. Scorekeepers share one upload PIN, with one scorekeeper responsible for each game. A separate admin PIN controls roster management and corrections to uploaded games. The platform connects courtside recording to a hosted Python backend, a shared MySQL database, and a statistics website.
 
 ## Features
 
@@ -8,20 +8,20 @@ CourtSide is a basketball scorekeeping and statistics platform for one universit
 - Manage permanent player identities, enrollment years, graduation status, and game-specific guests.
 - Select squads and starters, make substitutions, and track playing minutes.
 - Preserve event history and apply corrections without double-counting plays.
-- Upload game data remotely from authorized scorekeeper accounts.
-- Save games locally while offline and synchronize when connectivity returns.
+- Upload finished games remotely using the shared scorekeeper PIN.
+- Save games locally while offline and retry uploads when connectivity returns.
 - View game results, player statistics, shooting percentages, and minutes on the statistics website.
 - Export CSV files for analysis and JSON backups for restoring the local workspace.
 
 ## Remote workflow
 
-1. A scorekeeper signs in and records a game for the team.
+1. One scorekeeper records a game for the team and finishes it locally.
 2. The app saves events, squad selections, and playing time locally.
-3. The scorekeeper uploads the saved game when connected to the internet.
+3. The scorekeeper enters the shared PIN and uploads the finished game when connected to the internet.
 4. The hosted Python backend checks access, validates and converts the data, and writes it into MySQL automatically.
-5. The statistics website displays the stored results through the backend.
+5. The backend publishes a static statistics snapshot. Public visitors read that snapshot without a PIN, even while the backend or database is asleep.
 
-Repeated submissions do not create duplicate events. Corrections preserve the game's identity and history. Scorekeepers do not need to export CSVs or run Python commands for remote uploads.
+Repeated submissions do not create duplicate events. Uploaded games are locked for scorekeepers. The admin can correct any uploaded game, manage the shared roster, and delete or restore games. Corrections preserve the game's identity and audit history. Database saving and website publication have separate status messages; publication can be retried without uploading another copy of the game. Scorekeepers do not need to export CSVs or run Python commands for remote uploads.
 
 The backend and database run on remote hosting, so a scorekeeper's personal computer does not need to stay on. Database credentials remain on the server; the browser communicates with the backend.
 
@@ -30,10 +30,16 @@ The backend and database run on remote hosting, so a scorekeeper's personal comp
 | Component | Responsibility |
 | --- | --- |
 | Scorekeeper frontend | Recording, roster selection, substitutions, local saving, and uploads |
-| Hosted Python backend | Account access, validation, data conversion, and database writes |
+| Hosted Python backend | PIN sessions, validation, atomic game uploads, admin corrections, and publishing |
 | MySQL database | Shared player, game, event, and participation records |
-| Statistics website | Game results, player totals, shooting percentages, and minutes |
+| Statistics website | Public game results, player totals, shooting percentages, and minutes from published snapshots |
 | Python CSV importer | Local imports from exported files |
+
+## Deployment
+
+The deployment package targets **Cloudflare Pages Free**, **Render Free**, and **Aiven MySQL Free**, using their included subdomains. See [remote deployment setup](docs/remote-deployment.md) for configuration and [remote API setup](docs/remote-api.md) for migration commands. Hosting accounts and secrets must be configured before remote access is available; no live deployment is bundled with this repository.
+
+Public results are static files and do not depend on an awake API or database. Uploads and admin changes require those services to be running. An already-open scorekeeper continues recording during a connection loss; local backups remain important. The standalone HTML is also available for offline use. Free-service quotas and availability limits are described in the deployment guide.
 
 ## Standalone scorekeeper
 

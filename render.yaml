@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: courtside-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: PUBLIC_API_BASE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SCOREKEEPER_PIN
+        sync: false
+      - key: ADMIN_PIN
+        sync: false
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        value: scorekeeper
+      - key: MYSQL_SSL_CA
+        value: /etc/secrets/aiven-ca.pem
+      - key: CLOUDFLARE_PROJECT
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false

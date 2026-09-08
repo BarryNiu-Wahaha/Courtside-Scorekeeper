@@ -1,3 +1,20 @@
+﻿# Final resolution at `d6e3bb5`
+
+All four findings in this scoped frontend review are resolved. The final P1 follow-up in `1d8ae3e..d6e3bb5` persists `uncertain=true` before dispatch, retains prior uncertainty separately for the current attempt, and preserves the lock after a reload followed by a definitive rejected retry. A genuinely first attempt with definitive rejection still unlocks. Authentication failure before preparation remains safe. No regression found in this scoped final check.
+
+Verification: independently reran all 12 focused Node remote tests successfully. Inspected the new Edge reload-during-pending-POST then 400 regression; parent reports that browser test passed. Edge was not rerun by this reviewer. Historical findings and intermediate status below are retained for traceability and are superseded by this final resolution.
+
+
+## Fix review at `1d8ae3e`
+
+Reviewed `512db95..1d8ae3e` against the four findings below. All 10 focused Node remote tests pass. Parent reports the expanded Edge regression passed after first reproducing roster loss; this follow-up inspected that test without rerunning Edge.
+
+- **Roster reauthentication loss: resolved.** `rosterLoaded` initializes the roster independently of `detail`, preserving existing inputs and model across reauthentication. Explicit logout confirms discard.
+- **Roster edits during save: resolved for the reported path.** Existing buttons, inputs and selects are disabled during requests, then their original disabled states restored. The delayed-save browser assertion covers this roster lock.
+- **Unknown total minutes: resolved.** All-null totals remain null; mixed known/unknown minutes produce a marked known subtotal. Both cases pass focused tests.
+- **Rejected-upload lock: original case fixed, but P1 recovery gap remains.** Authentication precedes preparation, and first definitive rejection unlocks. However, the pending record persisted before POST lacks an `uncertain` flag. Close/reload during POST, allowing a server commit before any browser success/catch handler. The recovered pending record still lacks uncertainty. If its retry POST returns 401 (for example token expiration between login and submission), `failed` deletes `remote`, unlocking a potentially official game. A direct JSON-round-tripped pending-record reproduction followed by `failed(g,{status:401})` produced `g.remote === undefined`. Persist uncertainty before dispatch, retaining whether uncertainty preceded this attempt so only a truly first definitive rejection unlocks; alternatively conservatively classify recovered pending payloads as uncertain. Add a reload-before-response followed by rejected-retry regression. Affected: `src/app.js` before `remoteClient.upload`, `src/remote.js` `failed`.
+
+Original findings follow for history.
 # Remote frontend and publisher review
 
 Scope: `df2837a..512db95`, approved remote-upload design, recorder integration, public/admin pages, publisher and new tests. Backend files under construction were excluded. Findings below follow directly from the inspected control flow; the existing browser smoke uses mocked HTTP and does not exercise these failure cases. No live Cloudflare deployment was verified.
@@ -37,3 +54,5 @@ Scope: `df2837a..512db95`, approved remote-upload design, recorder integration, 
 ## Review observations
 
 Game corrections retain the loaded `detail.version` rather than replacing it on list refresh, so a stale editor still sends its original expected version. A 409 leaves its input model available; server enforcement must be verified in the backend integration suite. The publisher builds into a fresh temporary directory, explicitly selects public fields/files, normalizes guest identity, passes credentials through the child environment, and suppresses deployment output in raised errors. No concrete secret leak was found in these inspected paths. Actual provider deployment, publication ordering, backend authorization, and database snapshot consistency remain outside this frontend/mock-transport review.
+
+
