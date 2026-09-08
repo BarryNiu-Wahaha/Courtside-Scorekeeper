@@ -22,11 +22,12 @@ const originalFetch=window.fetch.bind(window);
 window.fetch=async function(url,options={}){
  if(!String(url).startsWith('https://api.example'))return originalFetch(url,options);
  const route=String(url).replace('https://api.example',''),body=options.body?JSON.parse(options.body):null;
- const response=data=>Promise.resolve({ok:true,status:200,json:async()=>data});
- if(route==='/api/session')return response({token:'test-session',role:body.role});
- if(route==='/api/games'){window.__uploads.push(body);if(window.__failUpload){window.__failUpload=false;throw TypeError('Connection interrupted');}return response({game_id:${JSON.stringify(g.id)},version:1,publication:'pending'});}
+ const response=data=>Promise.resolve({ok:true,status:200,json:async()=>structuredClone(data)});
+ const rejected=(status,error)=>Promise.resolve({ok:false,status,json:async()=>({error})});
+ if(route==='/api/session'){if(window.__denyLogin)return rejected(401,'Invalid PIN');return response({token:'test-session',role:body.role});}
+ if(route==='/api/games'){if(window.__rejectUpload)return rejected(400,'Invalid participation');window.__uploads.push(body);if(window.__failUpload){window.__failUpload=false;throw TypeError('Connection interrupted');}return response({game_id:${JSON.stringify(g.id)},version:1,publication:'pending'});}
  if(route==='/api/admin/games')return response({games:[{game_id:${JSON.stringify(g.id)},game_date:'2026-09-08',opponent:'Remote Hawks',version:1,deleted:false}],publication:{status:'pending'}});
- if(route==='/api/admin/roster'||route==='/api/roster'){if(options.method==='PUT'){window.__adminWrites.push(body);return response({publication:'pending'});}return response({players:${JSON.stringify(apiRoster)}});}
+ if(route==='/api/admin/roster'||route==='/api/roster'){if(options.method==='PUT'){if(window.__expireRoster){window.__expireRoster=false;return rejected(401,'Session expired');}window.__rosterSaving=true;await new Promise(r=>setTimeout(r,500));window.__adminWrites.push(body);return response({publication:'pending'});}return response({players:${JSON.stringify(apiRoster)}});}
  if(route==='/api/admin/publish')return response({publication:'published'});
  if(route.endsWith('/delete')||route.endsWith('/restore')){window.__adminWrites.push(body);return response({version:2,publication:'published'});}
  if(route.startsWith('/api/admin/games/')){if(options.method==='PUT'){window.__adminWrites.push(body);return response({version:2,publication:'pending'});}return response({game_id:${JSON.stringify(g.id)},version:1,deleted:false,upload:${JSON.stringify(upload)}});}
@@ -47,7 +48,11 @@ window.fetch=async function(url,options={}){
  fs.writeFileSync(path.join(artifacts,'remote-public.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  await send('Page.navigate',{url:base+'/Front.html'});await until("!!document.querySelector('#setup-dialog')?.open");
  await evaluate(`localStorage.setItem('courtside.v2',${JSON.stringify(JSON.stringify({version:2,roster,games:[g],currentGameId:g.id}))})`);await send('Page.reload');await until("document.querySelector('#clock-status')?.textContent==='FINAL'");
- await click('#upload-button');await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Connection interrupted')");
+ await click('#upload-button');await evaluate('window.__denyLogin=true');await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Invalid PIN')");
+ assert.equal(await evaluate("!!JSON.parse(localStorage.getItem('courtside.v2')).games[0].remote"),false);
+ await evaluate('window.__denyLogin=false;window.__rejectUpload=true');await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Invalid participation')");
+ assert.equal(await evaluate("!!JSON.parse(localStorage.getItem('courtside.v2')).games[0].remote"),false);assert.equal(await evaluate("document.querySelector('#finish-button').disabled"),false);
+ await evaluate('window.__rejectUpload=false');await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Connection interrupted')");
  assert.equal(await evaluate("JSON.parse(localStorage.getItem('courtside.v2')).games[0].remote.state"),'pending');
  assert.equal(await evaluate("document.querySelector('#finish-button').disabled"),true);
  await value('#upload-pin','12345678');await click('#upload-submit');await until("document.querySelector('#upload-status').textContent.includes('Game saved in the database')");
@@ -57,8 +62,15 @@ window.fetch=async function(url,options={}){
  await send('Page.reload');await until("document.querySelector('#upload-button')?.textContent==='Uploaded'");assert.equal(await evaluate("document.querySelector('#finish-button').disabled"),true);
  await send('Page.navigate',{url:base+'/admin.html'});await until("!!document.querySelector('#admin-pin')");
  await value('#admin-pin','87654321');await click('#login-form button');await until("!!document.querySelector('#admin-games button')");
- await click('#admin-games button');await until("!document.querySelector('#editor').hidden");await click('#event-editor input[type=checkbox]');await click('#save-game');await until("window.__adminWrites.length===1");
- const written=await evaluate('window.__adminWrites[0]');assert.equal(written.version,1);assert.ok(written.upload.events_csv.includes(',HOME,true'));assert.equal(await evaluate("document.querySelector('#admin-pin').value"),'');
+ await until("!!document.querySelector('#roster-editor input')&&!document.querySelector('#save-roster').disabled");
+ await evaluate("const nameInput=document.querySelector('#roster-editor input');nameInput.value='Unsaved roster edit';nameInput.dispatchEvent(new Event('input'));window.__expireRoster=true;");
+ await click('#save-roster');await until("!document.querySelector('#login-form').hidden");
+ await value('#admin-pin','87654321');await click('#login-form button');await until("document.querySelector('#login-form').hidden&&!document.querySelector('#save-roster').disabled");
+ assert.equal(await evaluate("document.querySelector('#roster-editor input').value"),'Unsaved roster edit');
+ await click('#save-roster');await until('window.__rosterSaving===true');assert.equal(await evaluate("document.querySelector('#roster-editor input').disabled"),true);await until("!document.querySelector('#save-roster').disabled");
+ assert.ok((await evaluate('window.__adminWrites[0].roster_csv')).includes('Unsaved roster edit'));
+ await click('#admin-games button');await until("!document.querySelector('#editor').hidden");await click('#event-editor input[type=checkbox]');await click('#save-game');await until("window.__adminWrites.length===2");
+ const written=await evaluate('window.__adminWrites[1]');assert.equal(written.version,1);assert.ok(written.upload.events_csv.includes(',HOME,true'));assert.equal(await evaluate("document.querySelector('#admin-pin').value"),'');
  await click('#publish');await until("document.querySelector('#admin-status').textContent.includes('published')");
  fs.writeFileSync(path.join(artifacts,'remote-admin.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64'));
  assert.deepEqual(errors,[]);console.log('Remote Edge smoke passed: public snapshot/box score, failed upload retained, exact retry, uploaded lock survives reload, PIN not stored, admin correction and publication.');

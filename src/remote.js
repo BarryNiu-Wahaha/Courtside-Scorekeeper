@@ -20,6 +20,11 @@ function prepare(game,E,T){
   const payload={schema_version:1,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game)};
   game.remote={state:'pending',payload};return payload;
 }
+function failed(game,error){
+  if(!game.remote)return;
+  if([400,401,403,413,429].includes(error.status)&&!game.remote.uncertain){delete game.remote;return;}
+  game.remote.uncertain=true;
+}
 class Client{
   constructor(base,transport=root.fetch?.bind(root)){
     let url;try{url=new URL(base);}catch{throw Error('Configure a valid backend URL.');}
@@ -41,11 +46,11 @@ class Client{
   upload(payload){return this.request('/api/games','POST',payload);}
 }
 function totals(snapshot){
-  const players=new Map((snapshot.roster||[]).map(p=>[p.player_id,{...p,appearances:0,played_ms:0,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))}]));
+  const players=new Map((snapshot.roster||[]).map(p=>[p.player_id,{...p,appearances:0,played_ms:null,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))}]));
   let wins=0,losses=0,ties=0;
   for(const g of snapshot.games||[]){if(g.home_points>g.away_points)wins++;else if(g.home_points<g.away_points)losses++;else ties++;
-    for(const p of g.players||[]){if(!players.has(p.player_id))players.set(p.player_id,{...p,appearances:0,played_ms:0,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))});const total=players.get(p.player_id);total.appearances+=Number(p.played_count||0);total.played_ms+=Number(p.played_ms||0);total.partial||=g.coverage!=='complete'||p.played_ms==null;for(const k of statKeys)total.stats[k]+=Number(p.stats?.[k]||0);}
+    for(const p of g.players||[]){if(!players.has(p.player_id))players.set(p.player_id,{...p,appearances:0,played_ms:null,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))});const total=players.get(p.player_id);total.appearances+=Number(p.played_count||0);if(p.played_ms!=null)total.played_ms=(total.played_ms??0)+Number(p.played_ms);total.partial||=g.coverage!=='complete'||p.played_ms==null;for(const k of statKeys)total.stats[k]+=Number(p.stats?.[k]||0);}
   }return {wins,losses,ties,players:[...players.values()]};
 }
-const api={Client,prepare,csv,parseCSV,totals,statKeys};if(typeof module==='object'&&module.exports)module.exports=api;root.RemoteClient=api;
+const api={Client,prepare,failed,csv,parseCSV,totals,statKeys};if(typeof module==='object'&&module.exports)module.exports=api;root.RemoteClient=api;
 })(globalThis);
