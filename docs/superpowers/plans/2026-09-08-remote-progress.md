@@ -10,7 +10,7 @@ The user authorized project work and waived repeated approval checkpoints. Work 
 - Task 3 complete locally: Cloudflare artifact publisher, Render Free deployment package and account setup instructions in be46f79. Live deployment requires owner accounts and secrets; Docker and provider connections remain unverified.
 - Task 4 complete: API contract integration, independent reviews, unit and isolated MySQL tests, Edge browser checks and README handoff. Actual evidence and limitations are recorded in docs/remote-verification.md.
 
-The implementation remains on the local feature branch. The Aiven database is initialized as recorded below; the backend and website are not yet deployed.
+The implementation has been fast-forward merged into `main` on 2026-09-09 with the user's approval. Continue future work from `main`. The Aiven database is initialized as recorded below; the backend and website are not yet deployed.
 
 ## Session handoff — 2026-09-09
 
@@ -37,6 +37,8 @@ The implementation remains on the local feature branch. The Aiven database is in
 4. Build/publish the initial website and perform the documented hosted upload/publication checks. The successful database migration does not establish that the API or website is deployed. Docker, Render, Cloudflare publication, and hosted end-to-end behavior remain unverified.
 
 ### Working tree to preserve
+
+- Integration verification on 2026-09-09: 36 JavaScript tests, 29 Python tests, all 22 isolated MySQL integration tests, and both Edge browser suites passed. The fast-forward merge preserved the exact tested implementation. The user's Aiven database and local production database were not used by these tests.
 
 - Branch: `feature/remote-uploads`; latest commit at session start: `9a8c4c4`.
 - Pre-existing uncommitted items: `.gitignore`, two original game CSV exports, `docs/database-er-diagram.html`, and `scripts/generate-er-diagram.py`. Preserve these and the local production database.
