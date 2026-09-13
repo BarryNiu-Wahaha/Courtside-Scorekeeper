@@ -8,3 +8,4 @@ backups/
 !.env.example
 .codex/
 .agents/
+*.pem

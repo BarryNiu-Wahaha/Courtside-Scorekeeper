@@ -37,7 +37,7 @@ The backend and database run on remote hosting, so a scorekeeper's personal comp
 
 ## Deployment
 
-The deployment package targets **Cloudflare Pages Free**, **Render Free**, and **Aiven MySQL Free**, using their included subdomains. See [remote deployment setup](docs/remote-deployment.md) for configuration and [remote API setup](docs/remote-api.md) for migration commands. Hosting accounts and secrets must be configured before remote access is available; no live deployment is bundled with this repository.
+The deployment package targets **Cloudflare Pages Free**, **Render Free**, and **Aiven MySQL Free**, using their included subdomains. See [remote deployment setup](docs/remote-deployment.md) for configuration and [remote API setup](docs/remote-api.md) for migration commands. Deployment progress as of 2026-09-13: the user confirmed backend health at https://courtside-api-hrhm.onrender.com/api/health and uploaded the initial website at https://courtside-team.pages.dev/. Roster import and hosted upload/publication verification remain pending. See the [latest handoff](docs/superpowers/plans/2026-09-08-remote-progress.md) for configuration checks and next steps.
 
 Public results are static files and do not depend on an awake API or database. Uploads and admin changes require those services to be running. An already-open scorekeeper continues recording during a connection loss; local backups remain important. The standalone HTML is also available for offline use. Free-service quotas and availability limits are described in the deployment guide.
 
