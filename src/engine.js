@@ -16,10 +16,12 @@
   }
   function createGame(config, roster) {
     const {date, opponent, minutes, overtimeMinutes} = config;
+    const category=config.category??null;
+    if(category!==null&&!['official','friendly'].includes(category))throw Error('Choose an official or friendly game category.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0,10) !== date) throw Error('Choose a valid game date.');
     if (typeof opponent !== 'string' || !opponent.trim()) throw Error('Enter an opponent name.');
     if (![minutes,overtimeMinutes].every(n => Number.isInteger(n) && n >= 1 && n <= 99)) throw Error('Period lengths must be whole minutes from 1 to 99.');
-    return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes,
+    return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes, category,
       quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,
       roster:roster.map(p=>({...p})), gameEvents:[]};
   }
@@ -91,6 +93,7 @@
       check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);
       T.validateGame(g);
       check(typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Number.isFinite(Date.parse(g.date))&&new Date(g.date).toISOString().slice(0,10)===g.date&&str(g.opponent));
+      check(g.category==null||['official','friendly'].includes(g.category));
       check([g.minutes,g.overtimeMinutes].every(n=>Number.isInteger(n)&&n>=1&&n<=99));
       check(Number.isInteger(g.period)&&g.period>=1&&g.quarter===(g.period<=4?String(g.period):`OT${g.period-4}`));
       check(['started','finished','running'].every(k=>typeof g[k]==='boolean')&&!(g.finished&&g.running)&&(!g.running||g.started));

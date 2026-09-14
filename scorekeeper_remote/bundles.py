@@ -44,6 +44,15 @@ def validate_upload(document):
         if event.player_id and (event.player_id not in identities or identities[event.player_id][:2]!=(event.player_name,event.jersey_number) or (not event.is_voided and identities[event.player_id][2]<1)):
             raise ValidationError('Event and participation player identity snapshots differ')
     normalized={'schema_version':1,'finished':True,'events_csv':events_text,'participation_csv':document['participation_csv']}
+    # Preserve absence for legacy retry hashes; metadata is optional in v1.
+    if 'game_details' in document:
+        details=document['game_details']
+        if not isinstance(details,dict): raise ValidationError('game_details must be an object')
+        category=details.get('category'); duration=details.get('duration_ms'); complete=details.get('stats_complete',False)
+        if category not in (None,'official','friendly'): raise ValidationError('Invalid game category')
+        if duration is not None and (type(duration) is not int or not 1<=duration<=86400000): raise ValidationError('Invalid game duration')
+        if type(complete) is not bool: raise ValidationError('stats_complete must be boolean')
+        normalized['game_details']={'category':category,'duration_ms':duration,'stats_complete':complete}
     return Bundle(normalized,events,participation,*meta)
 
 def validate_roster_csv(text): return _read(text,read_roster,'roster.csv')

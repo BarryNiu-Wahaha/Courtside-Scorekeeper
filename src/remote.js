@@ -14,10 +14,13 @@ function parseCSV(text){
   const columns=records.shift()||[];if(!columns.length||new Set(columns).size!==columns.length)throw Error('Invalid CSV headers.');
   return {columns,rows:records.map(r=>{if(r.length!==columns.length)throw Error('Invalid CSV field count.');return Object.fromEntries(columns.map((c,i)=>[c,r[i]]));})};
 }
-function prepare(game,E,T){
+function prepare(game,E,T,options={}){
   if(!game?.finished)throw Error('Finish this game before uploading.');
   if(game.remote?.payload)return game.remote.payload;
   const payload={schema_version:1,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game)};
+  const parts=parseCSV(payload.participation_csv).rows;
+  const duration=parts.every(p=>p.coverage==='complete')?Math.round(parts.reduce((n,p)=>n+Number(p.played_ms),0)/5):null;
+  payload.game_details={category:game.category??null,duration_ms:duration>0&&duration<=86400000?duration:null,stats_complete:options.statsComplete===true};
   game.remote={state:'pending',payload};return payload;
 }
 function begin(game){const prior=Boolean(game.remote?.uncertain);game.remote.uncertain=true;return prior;}

@@ -22,6 +22,25 @@ class RemoteMySQLTests(unittest.TestCase):
         self.assertTrue(self.repo.save_initial(bundle)['unchanged'])
         changed=dict(self.payload);changed['events_csv']=changed['events_csv'].replace('09:00','08:59')
         with self.assertRaises(Conflict):self.repo.save_initial(validate_upload(changed))
+
+    def test_dashboard_details_migration_edit_and_audit_roundtrip(self):
+        import json
+        self.payload['game_details']=dict(category='friendly',duration_ms=600000,stats_complete=True)
+        self.repo.save_initial(validate_upload(self.payload))
+        self.repo.migrate()
+        self.assertEqual(self.repo.get_game('G_REMOTE_1')['upload']['game_details'],self.payload['game_details'])
+        first=self.repo.snapshot()['games'][0]
+        self.assertEqual(first['category'],'friendly')
+        self.assertEqual(first['home_stats']['fga'],1)
+        changed={**self.payload,'game_details':dict(category='official',duration_ms=1200000,stats_complete=False)}
+        self.repo.replace('G_REMOTE_1',1,validate_upload(changed))
+        self.assertEqual(self.repo.snapshot()['games'][0]['category'],'official')
+        self.assertFalse(self.repo.snapshot()['games'][0]['stats_complete'])
+        self.assertTrue(self.repo.save_initial(validate_upload(self.payload))['unchanged'])
+        with D.connect(self.config) as c:
+            with c.cursor() as q:
+                q.execute('SELECT prior_document FROM remote_audit WHERE game_id=%s',('G_REMOTE_1',))
+                self.assertEqual(json.loads(q.fetchone()['prior_document'])['game_details']['category'],'friendly')
     def test_stale_delete_and_restore(self):
         self.repo.save_initial(validate_upload(self.payload))
         deleted=self.repo.set_deleted('G_REMOTE_1',1,True);self.assertTrue(deleted['deleted'])

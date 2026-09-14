@@ -92,10 +92,10 @@
   $('clock-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{E.setClock(current(),$('clock-input').value.trim());$('clock-dialog').close();toast('Clock updated.');});});
   $('period-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;confirm('Advance the period?',`The clock will reset to ${g.period<4?g.minutes:g.overtimeMinutes}:00 and stay paused. All recorded plays will be kept.`,()=>run(()=>E.nextPeriod(g)));});
   $('undo-button').addEventListener('click',()=>run(()=>{const e=E.undo(current());if(e)toast(`Play #${e.event_id} voided. Stats updated.`);}));
-  function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';open('setup-dialog');}
+  function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';$('setup-category').value='friendly';open('setup-dialog');}
   $('new-game-button').addEventListener('click',setup);
   $('setup-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{
-    const g=E.createGame({date:$('setup-date').value,opponent:$('setup-opponent').value,minutes:Number($('setup-minutes').value),overtimeMinutes:Number($('setup-ot').value)},state.roster);
+    const g=E.createGame({date:$('setup-date').value,opponent:$('setup-opponent').value,category:$('setup-category').value,minutes:Number($('setup-minutes').value),overtimeMinutes:Number($('setup-ot').value)},state.roster);
     if(current()?.running)E.pause(current());state.games.push(g);state.currentGameId=g.id;selectedId=null;side='HOME';$('setup-dialog').close();chooseLineup();
   });});
   $('finish-button').addEventListener('click',()=>{
@@ -203,11 +203,13 @@
   let remoteClient=null,uploadBusy=false;
   function renderRemote(){
     const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('upload-complete').disabled=!!g?.remote?.payload;
+    if(g?.remote?.payload)$('upload-complete').checked=g.remote.payload.game_details?.stats_complete===true;
     $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';
     $('upload-button').textContent=uploadBusy?'Uploading…':g?.remote?.state==='uploaded'?'Uploaded':g?.remote?.state==='pending'?'Retry upload':'Upload finished game';
     if(g?.remote){$('finish-button').disabled=true;$('finish-button').textContent=g.remote.state==='uploaded'?'Uploaded · admin edits only':'Upload pending · game locked';}
   }
-  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
+  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-complete').checked=current().remote?.payload?.game_details?.stats_complete===true;$('upload-complete').disabled=!!current().remote?.payload;$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
   $('upload-form').addEventListener('submit',async event=>{
     event.preventDefault();if(uploadBusy)return;const g=current();if(!g?.finished)return;
     uploadBusy=true;$('upload-submit').disabled=true;renderRemote();let submissionStarted=false,newlyPrepared=false,priorUncertainty=false;
@@ -218,7 +220,7 @@
       $('upload-status').textContent='Connecting… A sleeping backend can take about a minute to start.';
       await remoteClient.login(pin,'scorekeeper');
       newlyPrepared=!g.remote;
-      const payload=RemoteClient.prepare(g,E,T);
+      const payload=RemoteClient.prepare(g,E,T,{statsComplete:$('upload-complete').checked});
       priorUncertainty=RemoteClient.begin(g);
       localStorage.setItem(KEY,JSON.stringify(state));
       submissionStarted=true;

@@ -23,6 +23,7 @@
 }
 @media(min-width:951px) and (max-height:800px) and (orientation:landscape){.page-heading{display:none}.scoreboard{margin-top:12px}.topbar{height:54px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.coverage-choice{display:flex;align-items:flex-start;gap:10px;line-height:1.6}.coverage-choice input[type=checkbox]{width:20px;min-height:20px;flex:0 0 20px;margin:2px 0 0;accent-color:var(--blue)}
 /* Keep the five active players visible; the full game squad lives in a dialog. */
 #lineup-button{margin-bottom:10px}.roster-list{max-height:none;overflow:visible}#lineup-dialog{width:min(720px,calc(100% - 28px))}.squad-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.squad-name{flex:1;font-size:13px;overflow-wrap:anywhere}.squad-name small{display:block;font-size:10px;color:var(--muted);margin-top:4px}.squad-row label{margin:0;font-size:11px;display:flex;align-items:center;gap:6px;min-height:44px}.squad-row input[type=checkbox]{width:21px;min-height:21px;margin:0;accent-color:var(--blue)}#guest-form{border-top:1px solid var(--line);margin-top:20px;padding-top:12px}#guest-form h3{font-size:15px}.lineup-actions{position:sticky;bottom:-28px;background:white;padding:16px 0;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);margin-top:18px}select{width:100%;margin-top:8px;min-height:48px;border:1px solid #dce2ec;border-radius:9px;background:#fafbfd;padding:10px;color:var(--ink);font:inherit}#confirm-text{white-space:pre-line;max-height:50vh;overflow:auto}#roster-dialog{width:min(610px,calc(100% - 28px))}#player-form{margin-top:18px}
 @media(max-width:600px){.roster-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.player-card{width:100%;min-width:0}.squad-row{gap:7px}.squad-row label{font-size:10px}.squad-name{font-size:12px}.lineup-actions{bottom:-22px}#box-view .panel-heading{align-items:flex-start;flex-direction:column}.form-actions{flex-wrap:wrap}}
@@ -60,7 +61,7 @@
     </main>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <dialog id="setup-dialog"><form id="setup-form"><div class="dialog-heading"><div><div class="eyebrow">LET’S PLAY</div><h2>Set up your game</h2></div><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Your roster is ready. Just add the game details.</p><label>Opponent<input id="setup-opponent" name="opponent" required maxlength="100" placeholder="e.g. Northside Hawks" autocomplete="off"></label><label>Game date<input id="setup-date" type="date" required></label><div class="form-row"><label>Quarter length (min)<input id="setup-minutes" type="number" min="1" max="99" step="1" value="10" required></label><label>Overtime length (min)<input id="setup-ot" type="number" min="1" max="99" step="1" value="5" required></label></div><p class="form-note">Four regular quarters, then overtime as needed. Previous games stay in Game history.</p><button class="button dark full" type="submit">Create game →</button></form></dialog>
+  <dialog id="setup-dialog"><form id="setup-form"><div class="dialog-heading"><div><div class="eyebrow">LET’S PLAY</div><h2>Set up your game</h2></div><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Your roster is ready. Just add the game details.</p><label>Opponent<input id="setup-opponent" name="opponent" required maxlength="100" placeholder="e.g. Northside Hawks" autocomplete="off"></label><label>Game date<input id="setup-date" type="date" required></label><label>Game category<select id="setup-category" required><option value="friendly">Friendly</option><option value="official">Official</option></select></label><div class="form-row"><label>Quarter length (min)<input id="setup-minutes" type="number" min="1" max="99" step="1" value="10" required></label><label>Overtime length (min)<input id="setup-ot" type="number" min="1" max="99" step="1" value="5" required></label></div><p class="form-note">Four regular quarters, then overtime as needed. Previous games stay in Game history.</p><button class="button dark full" type="submit">Create game →</button></form></dialog>
   <dialog id="clock-dialog"><form id="clock-form"><div class="dialog-heading"><h2>Adjust game clock</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Match the official scoreboard. Earlier events keep their recorded times.</p><label>Time remaining (MM:SS)<input id="clock-input" type="text" inputmode="decimal" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="06:31" required></label><button class="button dark full" type="submit">Set time</button></form></dialog>
   <dialog id="roster-dialog"><div class="dialog-heading"><div><div class="eyebrow">OUR TEAM</div><h2>Manage roster</h2></div><button class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Player IDs stay the same when names or jersey numbers change. Existing event records stay unchanged.</p><div class="form-actions"><button id="roster-import-button" class="button subtle">Import roster CSV</button><button id="server-roster-button" class="button subtle" hidden>Download shared roster</button><button id="roster-export-button" class="button subtle">Export roster CSV</button></div><p class="form-note">CSV: player_id, player_name, jersey_number, enrollment_year, status_override. Export includes permanent IDs for database import.</p><form id="player-form"><input id="editing-player" type="hidden"><div class="form-row player-form-row"><label>Player name<input id="player-name" required maxlength="100" placeholder="Name"></label><label>Jersey #<input id="player-number" type="number" min="0" max="99" step="1" required placeholder="7"></label></div><div class="form-row"><label>Enrollment year<input id="player-year" type="number" min="1900" max="9995" step="1" placeholder="Unknown"></label><label>Status override<select id="player-status"><option value="">Automatic</option><option value="Astudent">Astudent</option><option value="graduated">graduated</option></select></label></div><p class="form-note">Automatic graduation: September 1, four years after enrollment. All statuses can play. Changes apply to future games.</p><div class="form-actions"><button id="save-player" class="button dark" type="submit">Add player</button><button id="cancel-edit" class="button subtle" type="button" hidden>Cancel edit</button></div></form><div id="manage-list" class="manage-list"></div></dialog>
   <dialog id="history-dialog"><div class="dialog-heading"><div><div class="eyebrow">THE SEASON SO FAR</div><h2>Game history</h2></div><button class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Open a game to review its plays, export data, or continue recording.</p><div id="history-list" class="history-list"></div></dialog>
@@ -68,7 +69,7 @@
   <dialog id="lineup-dialog"><div class="dialog-heading"><h2 id="lineup-title">Choose squad and starters</h2><button class="close-button" data-close aria-label="Cancel player selection">×</button></div><p id="lineup-description" class="dialog-description"></p><p id="lineup-count" class="form-note" aria-live="polite"></p><div id="squad-list"></div><form id="guest-form"><h3>Add a guest for this game</h3><p class="panel-hint">Individual guests stay on this device. Their database stats combine as Guest Player.</p><div class="form-row player-form-row"><label>Guest name<input id="guest-name" required maxlength="100"></label><label>Jersey #<input id="guest-number" type="number" min="0" max="99" step="1" required></label></div><button id="add-guest" class="button subtle" type="submit">Add guest</button></form><div class="lineup-actions"><button class="button subtle" data-close>Cancel</button><button id="lineup-confirm" class="button dark">Confirm five</button></div></dialog>
   <input id="roster-file" type="file" accept=".csv,text/csv" hidden>
   <input id="restore-file" type="file" accept=".json,application/json" hidden>
-  <dialog id="upload-dialog"><form id="upload-form"><h2>Upload finished game</h2><p id="upload-status" class="dialog-description" role="status"></p><label>Scorekeeper PIN<input id="upload-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" required></label><div class="actions"><button id="upload-submit" type="submit" class="button dark">Upload game</button><button type="button" class="button subtle" data-close>Close</button></div></form></dialog>
+  <dialog id="upload-dialog"><form id="upload-form"><h2>Upload finished game</h2><p id="upload-status" class="dialog-description" role="status"></p><label class="coverage-choice"><input id="upload-complete" type="checkbox"> Full statistics recorded for both teams (including misses, rebounds and turnovers)</label><p class="form-note">Enables estimated pace and efficiency. Leave unchecked if recording was incomplete.</p><label>Scorekeeper PIN<input id="upload-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" required></label><div class="actions"><button id="upload-submit" type="submit" class="button dark">Upload game</button><button type="button" class="button subtle" data-close>Close</button></div></form></dialog>
   <script>(function(root){
   'use strict';
   const GUEST='P_GUEST';
@@ -173,10 +174,12 @@
   }
   function createGame(config, roster) {
     const {date, opponent, minutes, overtimeMinutes} = config;
+    const category=config.category??null;
+    if(category!==null&&!['official','friendly'].includes(category))throw Error('Choose an official or friendly game category.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0,10) !== date) throw Error('Choose a valid game date.');
     if (typeof opponent !== 'string' || !opponent.trim()) throw Error('Enter an opponent name.');
     if (![minutes,overtimeMinutes].every(n => Number.isInteger(n) && n >= 1 && n <= 99)) throw Error('Period lengths must be whole minutes from 1 to 99.');
-    return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes,
+    return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes, category,
       quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,
       roster:roster.map(p=>({...p})), gameEvents:[]};
   }
@@ -248,6 +251,7 @@
       check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);
       T.validateGame(g);
       check(typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Number.isFinite(Date.parse(g.date))&&new Date(g.date).toISOString().slice(0,10)===g.date&&str(g.opponent));
+      check(g.category==null||['official','friendly'].includes(g.category));
       check([g.minutes,g.overtimeMinutes].every(n=>Number.isInteger(n)&&n>=1&&n<=99));
       check(Number.isInteger(g.period)&&g.period>=1&&g.quarter===(g.period<=4?String(g.period):`OT${g.period-4}`));
       check(['started','finished','running'].every(k=>typeof g[k]==='boolean')&&!(g.finished&&g.running)&&(!g.running||g.started));
@@ -319,10 +323,13 @@ function parseCSV(text){
   const columns=records.shift()||[];if(!columns.length||new Set(columns).size!==columns.length)throw Error('Invalid CSV headers.');
   return {columns,rows:records.map(r=>{if(r.length!==columns.length)throw Error('Invalid CSV field count.');return Object.fromEntries(columns.map((c,i)=>[c,r[i]]));})};
 }
-function prepare(game,E,T){
+function prepare(game,E,T,options={}){
   if(!game?.finished)throw Error('Finish this game before uploading.');
   if(game.remote?.payload)return game.remote.payload;
   const payload={schema_version:1,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game)};
+  const parts=parseCSV(payload.participation_csv).rows;
+  const duration=parts.every(p=>p.coverage==='complete')?Math.round(parts.reduce((n,p)=>n+Number(p.played_ms),0)/5):null;
+  payload.game_details={category:game.category??null,duration_ms:duration>0&&duration<=86400000?duration:null,stats_complete:options.statsComplete===true};
   game.remote={state:'pending',payload};return payload;
 }
 function begin(game){const prior=Boolean(game.remote?.uncertain);game.remote.uncertain=true;return prior;}
@@ -455,10 +462,10 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   $('clock-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{E.setClock(current(),$('clock-input').value.trim());$('clock-dialog').close();toast('Clock updated.');});});
   $('period-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;confirm('Advance the period?',`The clock will reset to ${g.period<4?g.minutes:g.overtimeMinutes}:00 and stay paused. All recorded plays will be kept.`,()=>run(()=>E.nextPeriod(g)));});
   $('undo-button').addEventListener('click',()=>run(()=>{const e=E.undo(current());if(e)toast(`Play #${e.event_id} voided. Stats updated.`);}));
-  function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';open('setup-dialog');}
+  function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';$('setup-category').value='friendly';open('setup-dialog');}
   $('new-game-button').addEventListener('click',setup);
   $('setup-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{
-    const g=E.createGame({date:$('setup-date').value,opponent:$('setup-opponent').value,minutes:Number($('setup-minutes').value),overtimeMinutes:Number($('setup-ot').value)},state.roster);
+    const g=E.createGame({date:$('setup-date').value,opponent:$('setup-opponent').value,category:$('setup-category').value,minutes:Number($('setup-minutes').value),overtimeMinutes:Number($('setup-ot').value)},state.roster);
     if(current()?.running)E.pause(current());state.games.push(g);state.currentGameId=g.id;selectedId=null;side='HOME';$('setup-dialog').close();chooseLineup();
   });});
   $('finish-button').addEventListener('click',()=>{
@@ -566,11 +573,13 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   let remoteClient=null,uploadBusy=false;
   function renderRemote(){
     const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('upload-complete').disabled=!!g?.remote?.payload;
+    if(g?.remote?.payload)$('upload-complete').checked=g.remote.payload.game_details?.stats_complete===true;
     $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';
     $('upload-button').textContent=uploadBusy?'Uploading…':g?.remote?.state==='uploaded'?'Uploaded':g?.remote?.state==='pending'?'Retry upload':'Upload finished game';
     if(g?.remote){$('finish-button').disabled=true;$('finish-button').textContent=g.remote.state==='uploaded'?'Uploaded · admin edits only':'Upload pending · game locked';}
   }
-  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
+  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-complete').checked=current().remote?.payload?.game_details?.stats_complete===true;$('upload-complete').disabled=!!current().remote?.payload;$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
   $('upload-form').addEventListener('submit',async event=>{
     event.preventDefault();if(uploadBusy)return;const g=current();if(!g?.finished)return;
     uploadBusy=true;$('upload-submit').disabled=true;renderRemote();let submissionStarted=false,newlyPrepared=false,priorUncertainty=false;
@@ -581,7 +590,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
       $('upload-status').textContent='Connecting… A sleeping backend can take about a minute to start.';
       await remoteClient.login(pin,'scorekeeper');
       newlyPrepared=!g.remote;
-      const payload=RemoteClient.prepare(g,E,T);
+      const payload=RemoteClient.prepare(g,E,T,{statsComplete:$('upload-complete').checked});
       priorUncertainty=RemoteClient.begin(g);
       localStorage.setItem(KEY,JSON.stringify(state));
       submissionStarted=true;

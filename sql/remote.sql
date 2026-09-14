@@ -14,3 +14,11 @@ CREATE TABLE IF NOT EXISTS remote_publication (
  state ENUM('pending','published') NOT NULL DEFAULT 'pending', last_error VARCHAR(500) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 INSERT INTO remote_publication(singleton) VALUES(1) ON DUPLICATE KEY UPDATE singleton=singleton;
+CREATE TABLE IF NOT EXISTS remote_game_details (
+ game_id VARCHAR(128) PRIMARY KEY,
+ category ENUM('official','friendly') NULL,
+ duration_ms BIGINT NULL,
+ stats_complete BOOLEAN NOT NULL DEFAULT FALSE,
+ FOREIGN KEY (game_id) REFERENCES games(game_id),
+ CHECK (duration_ms IS NULL OR (duration_ms > 0 AND duration_ms <= 86400000))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

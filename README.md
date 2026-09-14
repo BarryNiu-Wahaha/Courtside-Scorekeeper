@@ -11,6 +11,7 @@ CourtSide is a basketball scorekeeping and statistics platform for one universit
 - Upload finished games remotely using the shared scorekeeper PIN.
 - Save games locally while offline and retry uploads when connectivity returns.
 - View game results, player statistics, shooting percentages, and minutes on the statistics website.
+- Explore the public dashboard by Spring/Fall season, calendar year, or career; filter official/friendly games, search players, and view averages, leaders, game reports, and estimated pace/efficiency.
 - Export CSV files for analysis and JSON backups for restoring the local workspace.
 
 ## Remote workflow
@@ -26,6 +27,8 @@ Repeated submissions do not create duplicate events. Uploaded games are locked f
 The backend and database run on remote hosting, so a scorekeeper's personal computer does not need to stay on. Database credentials remain on the server; the browser communicates with the backend.
 
 ## Architecture
+
+The [public dashboard guide](docs/public-dashboard.md) explains period filters, metric definitions, recording completeness, and the additive database migration required for the dashboard release. Public readers need no PIN; upload and admin access retain their existing PIN roles.
 
 | Component | Responsibility |
 | --- | --- |

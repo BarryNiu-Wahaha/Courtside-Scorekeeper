@@ -11,9 +11,9 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 STAT_KEYS = ("points","fgm","fga","threeMade","threeAttempts","ftm","fta","offensive","defensive","rebounds","assists","steals","blocks","turnovers","fouls")
 ROSTER_KEYS = ("player_id","player_name","jersey_number","enrollment_year","status_override")
-GAME_KEYS = ("game_id","game_date","opponent","home_points","away_points","coverage")
+GAME_KEYS = ("game_id","game_date","opponent","home_points","away_points","coverage","category","duration_ms","stats_complete")
 PLAYER_KEYS = ("player_id","player_name","jersey_number","played_ms","played_count","starter_count","designated_count")
-PUBLIC_FILES = ("index.html","admin.html","site.css","public.js","admin.js")
+PUBLIC_FILES = ("index.html","admin.html","site.css","public.js","admin.js","analytics.js","dashboard.css")
 
 def _api_url(value):
     url = urlsplit(value)
@@ -34,6 +34,8 @@ def public_snapshot(snapshot):
     result["games"] = []
     for game in snapshot["games"]:
         clean = _pick(game, GAME_KEYS)
+        for side in ('home_stats','away_stats'):
+            clean[side] = _pick(game[side], STAT_KEYS) if isinstance(game.get(side),dict) else None
         clean["players"] = []
         for player in game.get("players", []):
             row = _pick(player, PLAYER_KEYS)

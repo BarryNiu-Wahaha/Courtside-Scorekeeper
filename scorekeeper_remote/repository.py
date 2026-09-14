@@ -103,6 +103,11 @@ class MySQLRepository:
                 p=found.get(row['player_id'])
                 if not p:raise ValidationError('Unknown roster player_id: '+row['player_id'])
     def _write(self,q,bundle):
+        details=bundle.upload.get('game_details')
+        if details is not None:
+            q.execute('INSERT INTO remote_game_details(game_id,category,duration_ms,stats_complete) VALUES(%s,%s,%s,%s) ON DUPLICATE KEY UPDATE category=VALUES(category),duration_ms=VALUES(duration_ms),stats_complete=VALUES(stats_complete)',(bundle.game_id,details['category'],details['duration_ms'],details['stats_complete']))
+        else:
+            q.execute('DELETE FROM remote_game_details WHERE game_id=%s',(bundle.game_id,))
         for row in bundle.participation:
             if row['player_id']=='P_GUEST':q.execute("INSERT INTO players(player_id,player_name,jersey_number,is_guest,roster_managed) VALUES('P_GUEST','Guest Player',0,TRUE,FALSE) ON DUPLICATE KEY UPDATE player_name='Guest Player',jersey_number=0,is_guest=TRUE")
         fields=('game_id','event_id','player_id','player_name','jersey_number','quarter','game_clock','event_type','points_value','recorded_at','team_side','is_voided')
@@ -138,12 +143,23 @@ class MySQLRepository:
         return rows
     def get_game(self,game_id):
         with self.D.connect(self.config) as c:
-            with c.cursor() as q:q.execute('SELECT r.game_id,g.game_date,g.opponent,r.version,r.deleted,r.schema_version,r.finished,r.events_csv,r.participation_csv FROM remote_uploads r JOIN games g USING(game_id) WHERE r.game_id=%s',(game_id,));r=q.fetchone()
+            with c.cursor() as q:
+                q.execute('SELECT r.game_id,g.game_date,g.opponent,r.version,r.deleted,r.schema_version,r.finished,r.events_csv,r.participation_csv FROM remote_uploads r JOIN games g USING(game_id) WHERE r.game_id=%s',(game_id,));r=q.fetchone()
+                details=self._details(q,game_id)
         if not r:raise KeyError(game_id)
         r['finished']=bool(r['finished'])
-        return {'game_id':r['game_id'],'game_date':r['game_date'].isoformat(),'opponent':r['opponent'],'version':r['version'],'deleted':bool(r['deleted']),'upload':{k:r[k] for k in ('schema_version','finished','events_csv','participation_csv')}}
+        document={k:r[k] for k in ('schema_version','finished','events_csv','participation_csv')}
+        if details is not None: document['game_details']=details
+        return {'game_id':r['game_id'],'game_date':r['game_date'].isoformat(),'opponent':r['opponent'],'version':r['version'],'deleted':bool(r['deleted']),'upload':document}
+    def _details(self,q,game_id):
+        q.execute('SELECT category,duration_ms,stats_complete FROM remote_game_details WHERE game_id=%s',(game_id,))
+        details=q.fetchone()
+        if details is not None: details['stats_complete']=bool(details['stats_complete'])
+        return details
     def _audit(self,q,row,action):
         doc={k:row[k] for k in ('schema_version','finished','events_csv','participation_csv')}
+        details=self._details(q,row['game_id'])
+        if details is not None: doc['game_details']=details
         q.execute('INSERT INTO remote_audit(game_id,prior_version,action,prior_document) VALUES(%s,%s,%s,%s)',(row['game_id'],row['version'],action,json.dumps(doc)))
     def replace(self,game_id,version,bundle):
         with self.D.connect(self.config) as c:
@@ -208,6 +224,7 @@ class MySQLRepository:
                 q.execute('SELECT g.game_id,g.game_date,g.opponent,r.deleted,COALESCE(p.coverage,"partial") AS coverage FROM remote_uploads r JOIN games g USING(game_id) LEFT JOIN participation_snapshots p USING(game_id) ORDER BY g.game_date,g.game_id');games=q.fetchall()
                 public_games=[]
                 for g in games:
+                    g['game_details']=self._details(q,g['game_id'])
                     q.execute('SELECT * FROM events WHERE game_id=%s ORDER BY event_id',(g['game_id'],));g['events']=[SimpleNamespace(**x) for x in q.fetchall()]
                     q.execute('SELECT * FROM game_participation WHERE game_id=%s ORDER BY player_id',(g['game_id'],));g['participation']=q.fetchall()
                     if not g['participation']:
