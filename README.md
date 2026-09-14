@@ -30,6 +30,8 @@ The backend and database run on remote hosting, so a scorekeeper's personal comp
 
 The [public dashboard guide](docs/public-dashboard.md) explains period filters, metric definitions, recording completeness, and the additive database migration required for the dashboard release. Public readers need no PIN; upload and admin access retain their existing PIN roles.
 
+Latest development handoff: [September 14 session status](docs/superpowers/plans/2026-09-14-session-handoff.md). The dashboard is implemented and verified locally; hosted deployment and real-roster setup remain next steps.
+
 | Component | Responsibility |
 | --- | --- |
 | Scorekeeper frontend | Recording, roster selection, substitutions, local saving, and uploads |
