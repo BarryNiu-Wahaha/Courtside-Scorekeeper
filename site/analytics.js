@@ -54,12 +54,25 @@
       offensiveReboundPct:awayKnown?ratio(home.offensive,home.offensive+away.defensive,100):null,
       defensiveReboundPct:awayKnown?ratio(home.defensive,home.defensive+away.offensive,100):null};
   }
+  function playerGroups(snapshot,selectedPlayers){
+    const identities=new Map();
+    for(const g of snapshot.games||[])if(!g.deleted)for(const p of g.players||[])identities.set(p.player_id,p);
+    for(const p of snapshot.roster||[])identities.set(p.player_id,{...identities.get(p.player_id),...p});
+    const selected=new Map(selectedPlayers.map(p=>[p.player_id,p]));
+    for(const p of selectedPlayers)if(!identities.has(p.player_id))identities.set(p.player_id,p);
+    const appeared=selectedPlayers.filter(p=>p.appearances>0),other=[];
+    for(const [id,identity] of identities){
+      if(selected.get(id)?.appearances>0)continue;
+      other.push(selected.get(id)||{...identity,appearances:0,played_ms:null,partial:false,stats:empty(),averages:Object.fromEntries(keys.map(k=>[k,null])),shooting:shooting(empty()),games:[]});
+    }
+    return {appeared,other};
+  }
   function leaders(players,key,mode){
     const eligible=players.filter(p=>p.player_id!=='P_GUEST'&&p.appearances>0);
     const value=p=>mode==='average'?p.stats[key]/p.appearances:p.stats[key];
     const best=Math.max(0,...eligible.map(value));
     return {value:best>0?best:null,players:best>0?eligible.filter(p=>Math.abs(value(p)-best)<1e-9).sort((a,b)=>a.player_id.localeCompare(b.player_id)):[]};
   }
-  const api={keys,empty,ratio,season,currentSeason,periodLabel,filterGames,shooting,gameMetrics,summarize,leaders};
+  const api={keys,empty,ratio,season,currentSeason,periodLabel,filterGames,shooting,gameMetrics,summarize,playerGroups,leaders};
   if(typeof module==='object'&&module.exports)module.exports=api;root.CourtSideAnalytics=api;
 })(globalThis);

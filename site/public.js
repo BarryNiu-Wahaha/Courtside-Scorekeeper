@@ -7,7 +7,7 @@
   const category=g=>g.category==='official'?'Official':g.category==='friendly'?'Friendly':'Unclassified';
   const descending=(a,b)=>b.game_date.localeCompare(a.game_date)||b.game_id.localeCompare(a.game_id);
   const names={points:'Points',rebounds:'Rebounds',offensive:'Off. rebounds',defensive:'Def. rebounds',assists:'Assists',steals:'Steals',blocks:'Blocks',turnovers:'Turnovers',fouls:'Fouls'};
-  let snapshot=null,games=[],summary=null,leaderMode='total',sortKey='points',sortDirection=-1,playerId=null;
+  let snapshot=null,games=[],summary=null,leaderMode='total',sortKey='points',sortDirection=-1,playerId=null,playerGroup='appeared';
   function empty(title,copy){const n=el('div',undefined,'empty-state');n.append(el('strong',title),el('p',copy));return n;}
   function button(text,action,cls='player-link'){const n=el('button',text,cls);n.type='button';n.onclick=action;return n;}
   function playerButton(p){const n=button(p.player_name,()=>openPlayer(p.player_id));n.prepend(el('span',p.jersey_number??'—','jersey'));return n;}
@@ -75,10 +75,16 @@
     if(!summary.away&&games.length)container.append(el('p','Opponent detail is unavailable for some selected historical games.','section-note'));
   }
   function renderPlayers(){
+    const groups=A.playerGroups(snapshot,summary.players),period=$('period-select').value;
+    const label=period==='career'?'Career players':period.startsWith('year:')?'Selected year':period===A.currentSeason()?'This season':'Selected season';
+    $('players-appeared').textContent=`${label} (${groups.appeared.length})`;
+    $('players-other').textContent=`Other players (${groups.other.length})`;
+    for(const group of ['appeared','other'])$('players-'+group).setAttribute('aria-pressed',playerGroup===group);
+    $('player-group-note').textContent=playerGroup==='appeared'?'Players with a recorded appearance in the selected period and game category. Unused bench players are under Other players.':'No recorded appearances in this period and game category. Select a player and change their profile period to explore earlier games.';
     const search=$('player-search').value.trim().toLocaleLowerCase().replace(/^#/,'');
-    const players=summary.players.filter(p=>p.player_name.toLocaleLowerCase().includes(search)||String(p.jersey_number).includes(search));
+    const players=groups[playerGroup].filter(p=>p.player_name.toLocaleLowerCase().includes(search)||String(p.jersey_number).includes(search));
     players.sort((a,b)=>sortDirection*((sortKey==='appearances'?a.appearances:a.averages[sortKey]??-1)-(sortKey==='appearances'?b.appearances:b.averages[sortKey]??-1))||a.player_name.localeCompare(b.player_name));
-    const holder=$('player-table');holder.replaceChildren();if(!players.length){holder.append(empty('No players found',search?'Try another name or jersey number.':'Players appear here when a game squad is published.'));return;}
+    const holder=$('player-table');holder.replaceChildren();if(!players.length){holder.append(empty('No players found',search?'Try another name or jersey number.':playerGroup==='appeared'?'Players appear here after playing in a published game. Browse Other players or choose another period.':'Every known player has an appearance in the selected games, or no roster has been published yet.'));return;}
     const columns=[['GP','appearances'],['PPG','points'],['RPG','rebounds'],['APG','assists'],['SPG','steals'],['BPG','blocks'],['TOPG','turnovers']];
     const headers=['Player',...columns.map(([title,key])=>{const b=button(title+(sortKey===key?(sortDirection===-1?' ↓':' ↑'):''),()=>{sortDirection=sortKey===key?-sortDirection:-1;sortKey=key;renderPlayers();},'sort-button');b.setAttribute('aria-label','Sort by '+title);b.setAttribute('aria-pressed',sortKey===key);return b;}),'FG%','3PT%','FT%'];
     holder.append(table(headers,players.map(p=>[playerButton(p),p.appearances,...['points','rebounds','assists','steals','blocks','turnovers'].map(k=>fmt(p.averages[k])),pct(p.shooting.fg),pct(p.shooting.three),pct(p.shooting.ft)])));
@@ -87,7 +93,7 @@
     $('results-count').textContent=`${games.length} games`;
     $('game-list').replaceChildren(...games.map(g=>{const card=el('article',undefined,'game-card'),result=g.home_points>g.away_points?'W':g.home_points<g.away_points?'L':'T';
       const info=el('div'),meta=el('p',g.game_date,'game-meta');meta.append(el('span',category(g),'category-tag'));info.append(meta,el('h3','vs '+g.opponent),el('p',A.periodLabel(A.season(g.game_date)),'game-meta'));
-      const end=el('div');end.append(el('p',`${g.home_points} – ${g.away_points}`,'score'),button('Game report →',()=>openGame(g),'game-report'));
+      const end=el('div');end.append(el('p',`${g.home_points} – ${g.away_points}`,'score'),button('Game overview →',()=>openGame(g),'game-report'));
       card.append(el('span',result,'result-mark '+(result==='L'?'loss':result==='T'?'tie':'')),info,end);return card;
     }));
     if(!games.length)$('game-list').append(empty('No games in this period','Try a different period or include both game categories.'));
@@ -112,11 +118,15 @@
     $('box-note').textContent=`${g.game_date} · ${category(g)} · ${A.periodLabel(A.season(g.game_date))} · ${g.coverage==='complete'?'Complete minute tracking':'Partial or unavailable minutes'}`;
     $('game-score').replaceChildren(el('span','Our team'),el('strong',`${g.home_points} – ${g.away_points}`),el('span',g.opponent));
     const m=A.gameMetrics(g);
-    $('game-metrics').replaceChildren(...metrics([['PACE',fmt(m.pace),'per 40 minutes'],['OFF. RATING',fmt(m.offensiveRating),'per 100 possessions'],['DEF. RATING',fmt(m.defensiveRating),'per 100 possessions'],['NET RATING',fmt(m.netRating),'offense − defense'],['POSSESSIONS',fmt(m.possessions),'estimated'],['DURATION',g.duration_ms?fmt(g.duration_ms/60000):'—','recorded minutes']]));
+    $('game-metrics').replaceChildren(...metrics([['PACE',fmt(m.pace),'per 40 minutes'],['OUR OFF. RATING',fmt(m.offensiveRating),'per 100 possessions'],['OUR DEF. RATING',fmt(m.defensiveRating),'per 100 possessions'],['OUR NET RATING',fmt(m.netRating),'offense − defense'],['POSSESSIONS',fmt(m.possessions),'estimated'],['DURATION',g.duration_ms?fmt(g.duration_ms/60000):'—','recorded minutes']]));
     const total=A.summarize(snapshot,[g]),h=total.home,a=total.away;
     const teamCells=s=>s?[s.points,`${s.fgm}/${s.fga}`,pct(A.shooting(s).fg),`${s.threeMade}/${s.threeAttempts}`,`${s.ftm}/${s.fta}`,s.offensive,s.defensive,s.rebounds,s.assists,s.steals,s.blocks,s.turnovers,s.fouls]:Array(13).fill('—');
-    $('game-comparison').replaceChildren(table(['Team','PTS','FG','FG%','3PT','FT','OREB','DREB','REB','AST','STL','BLK','TO','PF'],[['Our team',...teamCells(h)],[g.opponent,...teamCells(a)]]));
-    if(!g.stats_complete)$('game-comparison').append(el('p','Pace and ratings are unavailable: full statistics for both teams have not been confirmed.','section-note'));
+    const shootingRows=[['Field goals',s=>`${s.fgm}/${s.fga}`],['FG%',s=>pct(A.shooting(s).fg)],['3-pointers',s=>`${s.threeMade}/${s.threeAttempts}`],['3PT%',s=>pct(A.shooting(s).three)],['Free throws',s=>`${s.ftm}/${s.fta}`],['FT%',s=>pct(A.shooting(s).ft)]];
+    const rows=[['Points',g.home_points,g.away_points],...shootingRows.map(([label,value])=>[label,value(h),a?value(a):'—']),...['offensive','defensive','rebounds','assists','steals','blocks','turnovers','fouls'].map(k=>[names[k],h[k],a?a[k]:'—']),['Offensive rating',fmt(m.offensiveRating),fmt(m.defensiveRating)],['Defensive rating',fmt(m.defensiveRating),fmt(m.offensiveRating)]];
+    $('game-comparison').replaceChildren(table(['Recorded statistic','Our team',g.opponent],rows));
+    if(m.possessions===null)$('game-comparison').append(el('p','Pace and ratings require confirmed full statistics for both teams and positive estimated possessions.','section-note'));
+    else if(m.pace===null)$('game-comparison').append(el('p','Pace is unavailable because game duration was not recorded.','section-note'));
+    if(!a)$('game-comparison').append(el('p','Opponent detail was not recorded for this game. Its final score is still available.','section-note'));
     $('box-table').replaceChildren(table(['Player','MIN','PTS','FG','FG%','3PT','FT','OREB','DREB','REB','AST','STL','BLK','TO','PF'],(g.players||[]).map(p=>{const s={...A.empty(),...p.stats};return [p.player_name,p.played_count===0?'DNP':p.played_ms==null?'—':fmt(p.played_ms/60000)+(g.coverage==='complete'?'':'*'),...teamCells(s)];})));
     if(!$('box-dialog').open)$('box-dialog').showModal();
   }
@@ -129,6 +139,7 @@
     }catch(e){$('load-status').textContent=e.message||'Could not load statistics.';$('published').textContent='Results unavailable';$('retry-load').hidden=false;}
   }
   $('period-select').onchange=render;$('category-select').onchange=render;$('player-search').oninput=()=>{if(summary)renderPlayers();};
+  for(const group of ['appeared','other'])$('players-'+group).onclick=()=>{playerGroup=group;if(summary)renderPlayers();};
   $('profile-period').onchange=()=>{$('period-select').value=$('profile-period').value;render();};$('profile-category').onchange=()=>{$('category-select').value=$('profile-category').value;render();};
   $('leader-total').onclick=()=>{leaderMode='total';if(summary)renderLeaders();};$('leader-average').onclick=()=>{leaderMode='average';if(summary)renderLeaders();};
   $('player-close').onclick=()=>$('player-dialog').close();$('box-close').onclick=()=>$('box-dialog').close();$('retry-load').onclick=load;

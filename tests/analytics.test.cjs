@@ -13,3 +13,35 @@ test('aggregate pace weights duration and ratings weight possessions, with eligi
 test('partial minutes are labeled and missing minutes remain unavailable',()=>{assert.equal(typeof A.summarize,'function');const g={...game('2026-09-01'),coverage:'partial',players:[{...p('P1',1,{}),played_ms:null}]};const player=A.summarize({},[g]).players[0];assert.equal(player.played_ms,null);assert.equal(player.partial,true);});
 test('guest group per-game averages count games, not the number of guests',()=>{const g={...game('2026-09-01'),players:[p('P_GUEST',2,{points:20})]};const player=A.summarize({},[g]).players[0];assert.equal(player.appearances,1);assert.equal(player.averages.points,20);});
 test('DNP zero minutes cannot turn unknown played minutes into a recorded zero',()=>{const games=[{...game('2026-09-01'),players:[p('P1',0,{})]},{...game('2026-09-02'),coverage:'partial',players:[{...p('P1',1,{}),played_ms:null}]}];const player=A.summarize({},games).players[0];assert.equal(player.played_ms,null);assert.equal(player.appearances,1);assert.equal(player.partial,true);});
+
+test('player groups include zero-stat appearances but move DNP, past and unplayed roster members to other players',()=>{
+  const old={...game('2026-04-01'),players:[p('P_OLD',1,{points:20})]};
+  const current={...game('2026-09-01'),players:[p('P_ZERO',1,{}),p('P_DNP',0,{})]};
+  const snapshot={roster:[{player_id:'P_NEW',player_name:'New teammate',jersey_number:8},{player_id:'P_OLD',player_name:'Updated name',jersey_number:9}],games:[old,current]};
+  assert.equal(typeof A.playerGroups,'function');
+  const groups=A.playerGroups(snapshot,A.summarize(snapshot,[current]).players);
+  assert.deepEqual(groups.appeared.map(p=>p.player_id),['P_ZERO']);
+  assert.deepEqual(groups.other.map(p=>p.player_id).sort(),['P_DNP','P_NEW','P_OLD']);
+  const past=groups.other.find(p=>p.player_id==='P_OLD');
+  assert.equal(past.player_name,'Updated name');assert.equal(past.appearances,0);
+  assert.equal(past.stats.points,0);assert.equal(past.averages.points,null);
+});
+
+test('player tabs follow period and category and retain historical players absent from the current roster',()=>{
+  const spring={...game('2026-04-01'),players:[p('P_OLD',1,{points:10})]};
+  const fall={...game('2026-09-01','friendly'),players:[p('P_CURRENT',1,{points:5})]};
+  const snapshot={roster:[],games:[spring,fall]};
+  assert.equal(typeof A.playerGroups,'function');
+  const groups=filters=>A.playerGroups(snapshot,A.summarize(snapshot,A.filterGames(snapshot.games,filters)).players);
+  assert.deepEqual(groups({period:'spring:2026'}).appeared.map(p=>p.player_id),['P_OLD']);
+  assert.deepEqual(groups({period:'fall:2026',category:'official'}).appeared,[]);
+  assert.deepEqual(groups({period:'career'}).other,[]);
+  assert.deepEqual(groups({period:'career'}).appeared.map(p=>p.player_id),['P_OLD','P_CURRENT']);
+});
+
+test('other players exclude identities known only through deleted games and keep an empty-season roster accessible',()=>{
+  const snapshot={roster:[{player_id:'P_NEW',player_name:'New',jersey_number:1}],games:[{...game('2026-09-01'),deleted:true,players:[p('P_DELETED',1,{})]}]};
+  assert.equal(typeof A.playerGroups,'function');
+  const groups=A.playerGroups(snapshot,[]);
+  assert.deepEqual(groups.appeared,[]);assert.deepEqual(groups.other.map(p=>p.player_id),['P_NEW']);
+});

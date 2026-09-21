@@ -30,7 +30,7 @@ The backend and database run on remote hosting, so a scorekeeper's personal comp
 
 The [public dashboard guide](docs/public-dashboard.md) explains period filters, metric definitions, recording completeness, and the additive database migration required for the dashboard release. Public readers need no PIN; upload and admin access retain their existing PIN roles.
 
-Latest development handoff: [September 14 session status](docs/superpowers/plans/2026-09-14-session-handoff.md). The dashboard is implemented and verified locally; hosted deployment and real-roster setup remain next steps.
+Latest development handoff: [September 20 session status](docs/superpowers/plans/2026-09-20-session-handoff.md). The real roster is imported and a hosted test game has been uploaded and published successfully. The updated dashboard, player groups, game overviews and scorekeeper navigation are verified locally; their database migration and hosted release remain next steps.
 
 | Component | Responsibility |
 | --- | --- |
@@ -42,7 +42,7 @@ Latest development handoff: [September 14 session status](docs/superpowers/plans
 
 ## Deployment
 
-The deployment package targets **Cloudflare Pages Free**, **Render Free**, and **Aiven MySQL Free**, using their included subdomains. See [remote deployment setup](docs/remote-deployment.md) for configuration and [remote API setup](docs/remote-api.md) for migration commands. Deployment progress as of 2026-09-13: the user confirmed backend health at https://courtside-api-hrhm.onrender.com/api/health and uploaded the initial website at https://courtside-team.pages.dev/. Roster import and hosted upload/publication verification remain pending. See the [latest handoff](docs/superpowers/plans/2026-09-08-remote-progress.md) for configuration checks and next steps.
+The deployment package targets **Cloudflare Pages Free**, **Render Free**, and **Aiven MySQL Free**, using their included subdomains. See [remote deployment setup](docs/remote-deployment.md) for configuration and [remote API setup](docs/remote-api.md) for migration commands. Deployment progress as of 2026-09-20: the backend is hosted at https://courtside-api-hrhm.onrender.com and the website at https://courtside-team.pages.dev/. The real 37-player roster is imported; a test game upload and public snapshot publication were verified. The updated dashboard still needs its additive database migration and deployment. See the [latest handoff](docs/superpowers/plans/2026-09-20-session-handoff.md) for release steps.
 
 Public results are static files and do not depend on an awake API or database. Uploads and admin changes require those services to be running. An already-open scorekeeper continues recording during a connection loss; local backups remain important. The standalone HTML is also available for offline use. Free-service quotas and availability limits are described in the deployment guide.
 

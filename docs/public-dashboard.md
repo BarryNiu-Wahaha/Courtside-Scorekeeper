@@ -17,6 +17,12 @@ The period selector contains seasons and years represented in the published game
 
 Changing period or category updates team summaries, leaders, charts, player averages and game results together. Player profiles also provide synchronized period/category selectors. Search matches names (including Chinese names) and jersey numbers. Select a player to see averages, totals, shooting splits, recorded minutes and a game log. Select a game to see both teams' statistics, efficiency estimates and the player box score.
 
+The player table defaults to **This season**: players with an actual appearance in the selected games, including appearances with no recorded stats. Unused bench players do not qualify. The **Other players** button shows roster members and historical players without an appearance in the selected period/category. It does not mean they have retired. Search works within the chosen group; a profile's period selector lets visitors explore the player's earlier games. Year and career views use corresponding group labels.
+
+**Game overview** shows the score, estimated pace, duration and ratings above a side-by-side comparison of both teams. The comparison includes made/attempted shots, FG%, 3PT%, FT%, offensive/defensive/total rebounds, assists, steals, blocks, turnovers, fouls and each team's offensive/defensive rating. The player box score below contains only that game's squad. An older game's known opponent score remains visible even when its detailed opponent statistics are unavailable.
+
+The hosted scorekeeper has **Back to statistics** and **Admin** links below its header; the CourtSide logo also returns to statistics. Saved games remain in the same browser when navigating away and back. A running clock continues until paused or expired. The standalone offline file hides website navigation because it has no hosted website to return to.
+
 The six equally prominent leader cards show points, rebounds, offensive rebounds, assists, steals and blocks. Switch between totals and per-game averages. Tied players share the card; GP is visible so a one-game average is not confused with a long season. No minimum-games qualification is applied in v1. Combined guests appear in statistics but do not receive individual leader cards.
 
 ## Recording and corrections

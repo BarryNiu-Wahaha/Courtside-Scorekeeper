@@ -27,6 +27,8 @@
 /* Keep the five active players visible; the full game squad lives in a dialog. */
 #lineup-button{margin-bottom:10px}.roster-list{max-height:none;overflow:visible}#lineup-dialog{width:min(720px,calc(100% - 28px))}.squad-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.squad-name{flex:1;font-size:13px;overflow-wrap:anywhere}.squad-name small{display:block;font-size:10px;color:var(--muted);margin-top:4px}.squad-row label{margin:0;font-size:11px;display:flex;align-items:center;gap:6px;min-height:44px}.squad-row input[type=checkbox]{width:21px;min-height:21px;margin:0;accent-color:var(--blue)}#guest-form{border-top:1px solid var(--line);margin-top:20px;padding-top:12px}#guest-form h3{font-size:15px}.lineup-actions{position:sticky;bottom:-28px;background:white;padding:16px 0;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);margin-top:18px}select{width:100%;margin-top:8px;min-height:48px;border:1px solid #dce2ec;border-radius:9px;background:#fafbfd;padding:10px;color:var(--ink);font:inherit}#confirm-text{white-space:pre-line;max-height:50vh;overflow:auto}#roster-dialog{width:min(610px,calc(100% - 28px))}#player-form{margin-top:18px}
 @media(max-width:600px){.roster-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.player-card{width:100%;min-width:0}.squad-row{gap:7px}.squad-row label{font-size:10px}.squad-name{font-size:12px}.lineup-actions{bottom:-22px}#box-view .panel-heading{align-items:flex-start;flex-direction:column}.form-actions{flex-wrap:wrap}}
+
+.hosted-nav{display:flex;align-items:center;flex-wrap:wrap;gap:12px 24px;padding:12px 0;border-bottom:1px solid var(--line);font-size:12px}.hosted-nav[hidden]{display:none}.hosted-nav a{color:var(--ink);text-decoration:none;min-height:32px;display:inline-flex;align-items:center}.hosted-nav a:hover{text-decoration:underline}.hosted-nav [aria-current]{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -35,6 +37,7 @@
       <a class="brand" href="#" aria-label="CourtSide home"><span class="brand-ball" aria-hidden="true">◉</span><span>Court<span class="brand-light">Side</span><small>YOUR TEAM. EVERY PLAY.</small></span></a>
       <div class="topbar-right"><span id="save-status" class="save-status">● Saved on this device</span><button id="history-button" class="button subtle">Game history</button><button id="new-game-button" class="button dark">＋ New game</button></div>
     </header>
+    <nav id="hosted-nav" class="hosted-nav" aria-label="Website navigation" hidden><a id="statistics-link" href="index.html">← Back to statistics</a><span aria-current="page">Scorekeeper</span><a id="staff-admin-link" href="admin.html">Admin</a></nav>
     <div id="storage-warning" class="warning" role="alert" hidden></div>
     <main>
       <div class="page-heading"><div><div class="eyebrow">TEAM WORKSPACE</div><h1>Game day, under control.</h1></div><div id="game-meta" class="game-meta">Set up your game to get started.</div></div>
@@ -573,6 +576,8 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   let remoteClient=null,uploadBusy=false;
   function renderRemote(){
     const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('hosted-nav').hidden=!remoteBase;
+    if(remoteBase)document.querySelector('.brand').href='index.html';
     $('upload-complete').disabled=!!g?.remote?.payload;
     if(g?.remote?.payload)$('upload-complete').checked=g.remote.payload.game_details?.stats_complete===true;
     $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';

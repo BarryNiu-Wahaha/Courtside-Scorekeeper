@@ -203,6 +203,8 @@
   let remoteClient=null,uploadBusy=false;
   function renderRemote(){
     const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('hosted-nav').hidden=!remoteBase;
+    if(remoteBase)document.querySelector('.brand').href='index.html';
     $('upload-complete').disabled=!!g?.remote?.payload;
     if(g?.remote?.payload)$('upload-complete').checked=g.remote.payload.game_details?.stats_complete===true;
     $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';

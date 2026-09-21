@@ -13,3 +13,5 @@ dialog{width:min(1060px,calc(100% - 32px));max-height:90dvh;border:1px solid #d6
 
 .profile-filters{margin-top:18px}.more-metrics{margin-top:14px;font-size:11px;color:var(--muted)}.more-metrics summary{min-height:32px;cursor:pointer;color:var(--blue);font-weight:600}.more-metrics .table-wrap{margin-top:4px}
 #player-games th:first-child,#player-games td:first-child{min-width:210px;max-width:320px}
+
+.player-groups{display:flex;flex-wrap:wrap;width:fit-content;max-width:100%;margin:12px 0}.player-groups button{white-space:normal}#game-comparison table{min-width:0;table-layout:fixed;width:100%}#game-comparison th,#game-comparison td{white-space:normal;overflow-wrap:anywhere}#game-comparison th:first-child{width:40%}
