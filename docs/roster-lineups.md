@@ -4,7 +4,7 @@ Open `Front.html` in your browser. Everything below works locally; a remote data
 
 ## Prepare the university roster
 
-Open **Manage** beside the on-court panel. You can add a university player or edit an existing player's name, jersey number, enrollment year, and status override. Names and jersey numbers can change without changing the permanent player ID. Existing games retain the names and numbers captured in their game roster.
+Open **Manage** beside the on-court panel. You can add a university player or edit an existing player's name, jersey number, enrollment year, and status override. Names and jersey numbers can change without changing the permanent player ID. Games that have not started update immediately, including the on-court panel and player-selection list. Started, finished, and upload-locked games retain their original game roster.
 
 Enrollment year is optional. With automatic status, a player enrolled in 2022 becomes `graduated` on September 1, 2026. Before that date the status is `Astudent`. An unknown year gives `Unknown`. Choose a manual `Astudent` or `graduated` override for exceptions; choose **Automatic** to restore the enrollment-year rule. Students, graduates, and players with unknown status can all be selected for games.
 
@@ -26,7 +26,7 @@ Add one player per row. The name and jersey number are required; jersey numbers 
 4. Use **Add a guest for this game** for someone outside the permanent roster. Each guest has a local name and number, counts toward the 15-player limit, and can start.
 5. Select **Confirm five**, then **Start game** at tip-off.
 
-The squad stays fixed after play starts. Before starting, **Choose game players** lets you revise the squad and starters. Roster edits in Manage apply to future game snapshots, so prepare your roster before creating the game.
+The squad stays fixed after play starts. Before starting, **Choose game players** lets you revise the squad and starters. CSV imports, shared-roster downloads, and edits in Manage refresh unstarted games while preserving their selected squad, starters, and guests. Newly added teammates become available in **Choose game players**; they are not automatically placed on court. Existing recorded games and player minutes remain unchanged.
 
 ## Record and substitute
 

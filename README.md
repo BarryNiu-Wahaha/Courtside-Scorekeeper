@@ -65,7 +65,7 @@ The English layout is optimized for landscape iPad. Portrait uses a two-column p
 
 ## Players and saving
 
-The original 27 Chinese names and jersey numbers are retained. **Manage** adds university players, edits names/numbers/enrollment years, and imports or exports a roster CSV. Permanent IDs are independent of names and jersey numbers. Changes affect future game rosters; existing games retain their original player snapshots. Missing players in a CSV import remain saved, and there is no delete-player action that could orphan historical data.
+The original 27 Chinese names and jersey numbers are retained. **Manage** adds university players, edits names/numbers/enrollment years, and imports or exports a roster CSV. Permanent IDs are independent of names and jersey numbers. Changes refresh games that have not started, including their on-court and player-selection panels, while preserving selected starters and guests. Started, finished, and upload-locked games retain their original player snapshots. Newly added teammates can be selected through **Choose game players** before tip-off. Missing players in a CSV import remain saved, and there is no delete-player action that could orphan historical data.
 
 Status becomes `graduated` on September 1 of enrollment year + four, otherwise `Astudent`. Unknown enrollment year gives `Unknown`; an optional manual override takes precedence. All statuses remain eligible for selection. Guests are distinct people locally but export as one anonymous **Guest Player** identity for database statistics. See the [roster and lineup walkthrough](docs/roster-lineups.md) and [blank roster CSV template](examples/roster-template.csv). Export your existing roster first when updating players so their IDs are preserved.
 

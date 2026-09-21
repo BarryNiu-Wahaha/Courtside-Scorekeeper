@@ -3,6 +3,28 @@ const E=require('../src/engine.js');
 const team=()=>require('../src/team.js');
 const roster=()=>Array.from({length:16},(_,i)=>({id:'P_'+i,name:'Player '+i,number:i}));
 const game=()=>E.createGame({date:'2026-09-07',opponent:'Test',minutes:10,overtimeMinutes:5},roster());
+
+test('pregame roster refresh updates selected players and adds choices without resetting lineup or guests',()=>{
+ const T=team(),g=game(),guest={id:'GUEST_local',name:'Local guest',number:88,guest:true};g.roster.push(guest);
+ const ids=['P_0','P_1','P_2','P_3',guest.id];T.configure(g,ids,ids);
+ const before=structuredClone({lineup:g.lineup,squad:g.squad,starters:g.starters,participation:g.participation});
+ const incoming=[{...g.roster[0],name:'Updated player',number:77},{id:'P_NEW',name:'New player',number:98}];
+ assert.equal(T.refreshPregameRoster(g,incoming),true);
+ assert.equal(g.roster.find(p=>p.id==='P_0').name,'Updated player');assert.equal(g.roster.find(p=>p.id==='P_0').number,77);
+ assert.ok(g.roster.some(p=>p.id==='P_NEW'));assert.ok(g.roster.some(p=>p.id==='P_15'));
+ assert.deepEqual(g.roster.find(p=>p.id===guest.id),guest);
+ assert.deepEqual({lineup:g.lineup,squad:g.squad,starters:g.starters,participation:g.participation},before);
+ incoming[0].name='Later mutation';assert.equal(g.roster[0].name,'Updated player');
+ E.validateState({version:2,roster:roster(),games:[g],currentGameId:g.id});
+ assert.equal(T.refreshPregameRoster(g,g.roster.filter(p=>!p.guest)),false);
+});
+
+test('roster refresh leaves started, finished, and upload-locked games unchanged',()=>{
+ for(const flags of [{started:true},{finished:true},{remote:{state:'pending'}},{gameEvents:[{event_id:1}]}]){
+  const g=Object.assign(game(),flags),before=structuredClone(g);
+  assert.equal(team().refreshPregameRoster(g,[{id:'P_0',name:'Changed',number:99}]),false);assert.deepEqual(g,before);
+ }
+});
 test('September cutoff, override, and unknown year',()=>{const T=team();assert.equal(T.status({enrollmentYear:2022},new Date(2026,7,31)),'Astudent');assert.equal(T.status({enrollmentYear:2022},new Date(2026,8,1)),'graduated');assert.equal(T.status({enrollmentYear:2022,statusOverride:'Astudent'},new Date(2026,8,1)),'Astudent');assert.equal(T.status({}),'Unknown');});
 test('roster CSV round trips Unicode and quoted names, retains missing people, rejects duplicate identities',()=>{const T=team(),r=[{id:'P_LEGACY_1',name:'张,三"',number:7,enrollmentYear:2022,statusOverride:null}];const out=T.parseRoster(T.rosterCSV(r),[{id:'old',name:'Old',number:7}]);assert.equal(out.length,2);assert.equal(out.find(p=>p.id===r[0].id).name,r[0].name);assert.throws(()=>T.parseRoster(T.rosterCSV([...r,...r]),[]));assert.throws(()=>T.parseRoster('player_id,player_name,jersey_number,enrollment_year,status_override\nP_GUEST,Guest,0,,',[]));});
 test('squad limits and starters are enforced atomically',()=>{const T=team(),g=game(),ids=g.roster.map(p=>p.id);assert.throws(()=>T.configure(g,ids,ids.slice(0,5)));assert.equal(g.squad,undefined);assert.throws(()=>T.configure(g,ids.slice(0,10),ids.slice(0,4)));T.configure(g,ids.slice(0,15),ids.slice(0,5));assert.equal(g.squad.length,15);assert.throws(()=>T.substitute(g,[...ids.slice(0,4),ids[15]]));assert.deepEqual(g.lineup,ids.slice(0,5));});

@@ -135,6 +135,24 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  const guestGame=await current(),guestCSV=fs.readFileSync(path.join(artifacts,guestGame.id+'_events.csv'),'utf8'),guestParticipation=fs.readFileSync(path.join(artifacts,guestGame.id+'_participation.csv'),'utf8');
  assert.equal(guestCSV.split('P_GUEST').length-1,2);assert.ok(!guestCSV.includes('Private Guest'));assert.ok(guestParticipation.includes('P_GUEST,Guest Player,0,2,2,2,'));assert.ok(!guestParticipation.includes('Private Guest'));assert.equal((await snapshot()).roster.length,27);
  await click('#lineup-button');await screenshot('substitution-popup',1194,834);await click('#lineup-dialog [data-close]');assert.equal((await current()).running,false);
+ // Import after creating a game: update current cards and future substitution choices.
+ const historical=JSON.stringify((await snapshot()).games.filter(g=>g.started||g.finished||g.remote));
+ await click('#new-game-button');await value('#setup-opponent','Roster refresh regression');await click('#setup-form button[type=submit]');await chooseSquad();
+ const beforeRosterImport=await current();
+ await click('#roster-button');
+ const refreshCSV='player_id,player_name,jersey_number,enrollment_year,status_override\nP_DEFAULT_001,Fresh imported name,77,2025,\nP_IMPORT_NEW,New imported teammate,98,2026,\n';
+ await evaluate(`(()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(refreshCSV)}],"fresh-roster.csv",{type:"text/csv"}));document.querySelector('#roster-file').files=dt.files;document.querySelector('#roster-file').dispatchEvent(new Event('change'));})()`);
+ for(let i=0;i<50;i++){if(await evaluate('document.querySelector("#confirm-dialog").open'))break;await delay(50);}
+ await click('#confirm-yes');await click('#roster-dialog [data-close]');
+ assert.ok((await evaluate('document.querySelector(\'[data-player="P_DEFAULT_001"]\').textContent')).includes('Fresh imported name'),'CSV import must refresh the on-court name before tip-off');
+ assert.equal(await evaluate('document.querySelector(\'[data-player="P_DEFAULT_001"] .jersey\').textContent'),'77');
+ assert.deepEqual((await current()).lineup,beforeRosterImport.lineup);assert.deepEqual((await current()).participation,beforeRosterImport.participation);
+ assert.equal(JSON.stringify((await snapshot()).games.filter(g=>g.started||g.finished||g.remote)),historical,'recorded games retain historical snapshots');
+ await click('#lineup-button');assert.equal(await evaluate('Boolean(document.querySelector(\'[data-squad="P_IMPORT_NEW"]\'))'),true,'new imported teammate must be selectable');await click('#lineup-dialog [data-close]');
+ await send('Page.reload');await delay(300);assert.ok((await evaluate('document.querySelector(\'[data-player="P_DEFAULT_001"]\').textContent')).includes('Fresh imported name'));
+ await click('#roster-button');await click('[data-edit="P_DEFAULT_001"]');await value('#player-name','Fresh edited name');await click('#save-player');await click('#roster-dialog [data-close]');
+ assert.ok((await evaluate('document.querySelector(\'[data-player="P_DEFAULT_001"]\').textContent')).includes('Fresh edited name'),'manual roster edit must refresh the on-court panel');
+ await click('#clock-button');await click('#clock-button');await click('#lineup-button');assert.ok((await evaluate('document.querySelector("#squad-list").textContent')).includes('Fresh edited name'));await click('#lineup-dialog [data-close]');
  assert.deepEqual(errors,[],'no browser JavaScript errors');assert.ok(!requests.some(u=>/^https?:/.test(u)),'app works without network requests');
  console.log('Browser smoke passed: setup, all 13 actions, undo, opponent records, roster identity, clock correction, periods, CSV download, refresh, box score, finish/reopen, game history, backup/restore, corrupt-storage recovery, five responsive sizes, offline operation.');
  console.log('Screenshots and exported CSV: tests/artifacts/');

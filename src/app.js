@@ -128,6 +128,11 @@
   function manage(){
     $('manage-list').innerHTML=state.roster.map(p=>`<div class="manage-row"><span class="jersey">${p.number}</span><span>${html(p.name)}<small>${html(p.id)} · ${html(T.status(p))}${p.statusOverride?' (manual)':''}<br>Enrollment: ${p.enrollmentYear||'Unknown'}</small></span><button class="text-button" data-edit="${html(p.id)}">Edit</button></div>`).join('');
   }
+  function refreshPregameRosters(){
+    let changed=false;for(const g of state.games)if(T.refreshPregameRoster(g,state.roster))changed=true;return changed;
+  }
+  function applyRoster(roster){state.roster=roster;refreshPregameRosters();manage();}
+  const rosterUpdateNote='Games that have not started use the updated roster. Games already started or finished keep their original players. Choose game players to add a new teammate to the squad.';
   function resetPlayerForm(){$('player-form').reset();$('editing-player').value='';$('save-player').textContent='Add player';$('cancel-edit').hidden=true;}
   $('roster-button').addEventListener('click',()=>{resetPlayerForm();manage();open('roster-dialog');});
   $('cancel-edit').addEventListener('click',resetPlayerForm);
@@ -140,7 +145,7 @@
     let p=state.roster.find(p=>p.id===id);
     if(p){p.name=name;p.number=number;}else{p={id:`P_${E.uuid()}`,name,number};state.roster.push(p);}
     Object.assign(p,{enrollmentYear,statusOverride});
-    resetPlayerForm();manage();toast('Roster saved for future games. Existing game rosters are unchanged.');
+    applyRoster(state.roster);resetPlayerForm();toast('Roster saved. '+rosterUpdateNote);
   });});
   let lineupDraft=null;
   function chooseLineup(){
@@ -189,7 +194,7 @@
       const fieldLabels={name:'Name',number:'Jersey',enrollmentYear:'Enrollment year',statusOverride:'Status override'};
       const display=(key,value)=>value??(key==='statusOverride'?'Automatic':'Unknown');
       const preview=[...added.map(p=>`Add ${p.id}: ${p.name} (#${p.number}), enrollment ${display('enrollmentYear',p.enrollmentYear)}, status ${display('statusOverride',p.statusOverride)}`),...updated.map(p=>{const old=state.roster.find(x=>x.id===p.id);return `Update ${p.id}:\n`+Object.keys(fieldLabels).filter(k=>(old[k]??null)!==(p[k]??null)).map(k=>`${fieldLabels[k]}: ${display(k,old[k])} → ${display(k,p[k])}`).join('\n');})].join('\n\n');
-      confirm('Apply roster CSV?',`${added.length} additions and ${updated.length} updates. Players absent from this file will be retained. Existing games keep their original roster.\n\n${preview||'No changes.'}`,()=>run(()=>{state.roster=merged;manage();toast('Roster imported. Export the roster CSV to transfer it to MySQL.');}));
+      confirm('Apply roster CSV?',`${added.length} additions and ${updated.length} updates. Players absent from this file will be retained. ${rosterUpdateNote}\n\n${preview||'No changes.'}`,()=>run(()=>{applyRoster(merged);toast('Roster imported. '+rosterUpdateNote);}));
     }catch(e){toast(e.message,true);}finally{$('roster-file').value='';}
   });
   $('participation-export-button').addEventListener('click',()=>run(()=>{const g=current();download(T.participationCSV(g,Date.now()),`${g.id}_participation.csv`,'text/csv;charset=utf-8');toast('Participation exported. Guests are combined as Guest Player.');}));
@@ -238,12 +243,13 @@
     try{if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);const result=await remoteClient.request('/api/roster');
       const csv=RemoteClient.csv(['player_id','player_name','jersey_number','enrollment_year','status_override'],result.players);
       const merged=T.parseRoster(csv,state.roster);
-      confirm('Use the shared team roster?', 'Update this device’s roster from the server for future games? Existing games keep their original players.',()=>run(()=>{state.roster=merged;manage();toast('Shared roster downloaded.');}));
+      confirm('Use the shared team roster?', 'Update this device’s roster from the server? '+rosterUpdateNote,()=>run(()=>{applyRoster(merged);toast('Shared roster downloaded. '+rosterUpdateNote);}));
     }catch(error){toast(error.message,true);}
   });
 
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderClock();});
   setInterval(renderClock,200);
+  if(!saveBlocked&&refreshPregameRosters())save();
   render();
   if(!current()&&!saveBlocked)setup();
 })();

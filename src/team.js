@@ -45,6 +45,14 @@
   }
   function checkFive(game,ids,squad=game.squad){if(!Array.isArray(ids)||ids.length!==5||new Set(ids).size!==5||ids.some(id=>!squad.includes(id)))fail('Choose exactly five different players from the designated squad.');}
   function revision(game,now=Date.now()){game.revision=Math.max((game.revision||0)+1,Math.floor(now),1);}
+  function refreshPregameRoster(game,roster){
+    if(!game||game.started||game.running||game.finished||game.remote||game.gameEvents.length)return false;
+    const merged=new Map(game.roster.map(p=>[p.id,{...p}]));
+    for(const p of roster)if(!p.guest&&!merged.get(p.id)?.guest)merged.set(p.id,{...merged.get(p.id),...p});
+    const next=[...merged.values()];
+    if(JSON.stringify(next)===JSON.stringify(game.roster))return false;
+    game.roster=next;revision(game);return true;
+  }
   function configure(game,squadIds,starterIds){
     if(game.running||game.finished||game.squad&&game.started)fail('Squad selection is only available before play starts.');
     if(!Array.isArray(squadIds)||squadIds.length<5||squadIds.length>15||new Set(squadIds).size!==squadIds.length||squadIds.some(id=>!game.roster.some(p=>p.id===id)))fail('Choose between 5 and 15 different designated players.');
@@ -80,6 +88,6 @@
     for(const id of game.squad){const p=game.participation[id];if(!p||!Number.isSafeInteger(p.playedMs)||p.playedMs<0||typeof p.played!=='boolean'||p.playedMs>0&&!p.played)fail('Invalid saved player minutes.');}
     if(game.running&&(!Number.isSafeInteger(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs))fail('Invalid saved timing anchor.');
   }
-  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame};
+  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TeamEngine=api;
 })(globalThis);
