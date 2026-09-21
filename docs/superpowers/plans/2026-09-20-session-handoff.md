@@ -30,6 +30,8 @@ These changes build on the already-completed local public dashboard from Septemb
 
 ## Release steps still required
 
+Update: the user has now run the hosted migration helper and reported `Dashboard database ready. Adopted 0 legacy games; existing records preserved.` Step 1 is complete based on user-reported output. Proceed with integration and deployment; do not repeat the migration merely because it appears in the checklist below.
+
 1. Run `python -m scorekeeper_remote migrate` using the **hosted Aiven settings** and verified TLS. This creates the additive `remote_game_details` table required by the dashboard backend. Existing game/roster data is preserved. The CLI does not prompt for a password itself; it needs `MYSQL_PASSWORD` supplied privately in its process environment. Prior terminal variables may still exist only in the user's terminal. A local helper is ready at `.local/migrate-dashboard.py`: run `python .local/migrate-dashboard.py` directly in the user's terminal. It reuses available connection settings, prompts privately when needed, requires an Aiven hostname and the local CA, targets `defaultdb`, and calls the existing additive migration/adoption methods. Help and Python compilation were checked; no hosted migration was performed by the agent.
 2. Integrate the verified `feat/public-season-dashboard` release into `main` and push, then deploy that commit through the existing Render service. Do not deploy the new backend before the database migration is confirmed.
 3. In Admin, publish the real database snapshot. This publishes the updated dashboard and hosted scorekeeper together. Do not upload synthetic previews or an empty initial-site ZIP over the real data.
