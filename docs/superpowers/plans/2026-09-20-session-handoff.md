@@ -1,5 +1,16 @@
 # Session handoff — September 20, 2026
 
+The user is finished for today. This note supersedes the September 14 deployment checklist. Resume from the live dashboard; do not rebuild, re-import the roster or repeat the completed migration.
+
+## Current checkpoint
+
+- Working checkout: `D:/Downloads/GCMC/Experiences&Project/ScoreKeeper`, branch `main`.
+- Feature commit: `81448a6` — navigation, season player groups and game overviews. Release checkpoint: `6f40d8f` — hosted migration confirmed.
+- `feat/public-season-dashboard` was fast-forward integrated into `main` and pushed to GitHub. No product changes were introduced by integration; unit/Python checks passed afterward.
+- The user completed the hosted migration, deployed the latest commit on Render, reported the service Live, then published through Admin successfully.
+- Agent HTTP reads confirmed the published homepage contains both player-group controls and the Game overview, and the hosted scorekeeper contains the statistics/Admin navigation links. This establishes delivery of the new assets; interactive behavior was verified by the local Edge suites, not by an authenticated live browser session.
+- Website: `https://courtside-team.pages.dev/`. Scorekeeper: `https://courtside-team.pages.dev/Front`. Admin: `https://courtside-team.pages.dev/admin`. Backend: `https://courtside-api-hrhm.onrender.com`.
+
 ## Hosted progress confirmed this session
 
 - The user imported the real 37-player university roster into the hosted database and reported `Roster committed.` Original permanent IDs were preserved.
@@ -16,7 +27,7 @@ The user approved these focused changes after reviewing the live test:
 2. Default the public player table to actual appearances in the selected season/category, including zero-stat appearances. Provide an Other players group for DNP, past and not-yet-played identities; preserve profile history and search.
 3. Make game selection open an overview with pace, ratings, score, both teams' full recorded statistics and shooting percentages, followed by the game's squad box score. Do not fabricate missing advanced metrics.
 
-These changes build on the already-completed local public dashboard from September 14. The live Render screenshot during this session still showed `main` at `936efbb`; the dashboard release and its new additive table have not been deployed or confirmed migrated.
+These changes include the previously local September 14 public dashboard: Spring/Fall, year and career views, leader cards, player profiles, filters and advanced metrics. The earlier Render screenshot showed `936efbb`, but the release was subsequently deployed and published as described above.
 
 ## Fresh verification
 
@@ -28,17 +39,24 @@ These changes build on the already-completed local public dashboard from Septemb
 - Standalone and static site builds passed. Independent read-only review reported no actionable findings. Whitespace checks passed.
 - Screenshots under `tests/artifacts/` use synthetic fixtures: `dashboard-game.png`, `dashboard-game-mobile.png`, `dashboard-player-tabs-mobile.png`, `scorekeeper-navigation-mobile.png`.
 
-## Release steps still required
+## Hosted evidence and release details
 
-Update: the user has now run the hosted migration helper and reported `Dashboard database ready. Adopted 0 legacy games; existing records preserved.` Step 1 is complete based on user-reported output. Proceed with integration and deployment; do not repeat the migration merely because it appears in the checklist below.
+- Migration output supplied by the user: `Dashboard database ready. Adopted 0 legacy games; existing records preserved.` The local helper `.local/migrate-dashboard.py` called the existing additive migration/adoption methods against hosted Aiven `defaultdb` using the local CA. No hosted credentials were supplied in chat or recorded in Git.
+- Last public snapshot read contained 37 roster players and two games dated September 20: the known TEST game at 2–2, and another game whose opponent is `1` at 6–0. The second game's purpose was not established; do not assume it is disposable.
+- Public verification used PowerShell HTTP reads. Cloudflare redirects `.html` pages with HTTP 308, so `/` and `/Front` were used for final page checks. Python's default urllib request received HTTP 403; this was a verification-client issue, not evidence of a failed publication.
+- Render deploys are manual in the checked-in service configuration. Backend deployment and publishing the public site are separate steps. The successful release completed both. This documentation-only wrap-up does not require another deployment/publication.
 
-1. Run `python -m scorekeeper_remote migrate` using the **hosted Aiven settings** and verified TLS. This creates the additive `remote_game_details` table required by the dashboard backend. Existing game/roster data is preserved. The CLI does not prompt for a password itself; it needs `MYSQL_PASSWORD` supplied privately in its process environment. Prior terminal variables may still exist only in the user's terminal. A local helper is ready at `.local/migrate-dashboard.py`: run `python .local/migrate-dashboard.py` directly in the user's terminal. It reuses available connection settings, prompts privately when needed, requires an Aiven hostname and the local CA, targets `defaultdb`, and calls the existing additive migration/adoption methods. Help and Python compilation were checked; no hosted migration was performed by the agent.
-2. Integrate the verified `feat/public-season-dashboard` release into `main` and push, then deploy that commit through the existing Render service. Do not deploy the new backend before the database migration is confirmed.
-3. In Admin, publish the real database snapshot. This publishes the updated dashboard and hosted scorekeeper together. Do not upload synthetic previews or an empty initial-site ZIP over the real data.
-4. Verify the new navigation, five actual appearances from the test game, the remaining players under Other players, and the 2–2 game overview on the live site. The old test upload did not confirm full stats, so pace/ratings must remain unavailable.
-5. Delete the explicitly named test game through Admin when review is complete, republish, and verify it is absent from public statistics.
+## Next session
+
+1. Start with any feedback on the newly live navigation, player tabs and game overview. Ask the user to hard-refresh an older browser tab before diagnosing stale UI.
+2. Finish cleanup of the clearly named 2–2 TEST game through Admin, then confirm successful publication and its absence from the public snapshot. The user authorized a temporary test but paused cleanup to inspect results; no deletion occurred during today's wrap-up. Ask what the opponent `1` game represents before making changes to it.
+3. Verify a hosted admin correction and delete/restore workflow with agreed test data. Local automated tests pass, but those live workflows have not been confirmed yet. Do not manufacture full-stat confirmation for the minimal two-shot test just to display pace.
+4. Consider a separate fix for shared-roster downloads merging built-in IDs with official IDs on new browsers. The current user's browser is repaired; the underlying merge behavior still needs a deliberate solution preserving historical games and local identities.
+5. Perform a real iPad Safari/touch check and record a complete game when available. Pace and ratings require recorded duration and adequate confirmed stats for both teams.
 
 The approved player-group design is for the public statistics table. Do not restrict scorekeeper selection to players who have already appeared: new teammates must remain selectable for their first game.
+
+Status override affects student/graduation status only. It does not determine the player tabs or prevent a graduated player from participating. The user was told Automatic graduates on September 1 of enrollment year + 4; missing enrollment years remain Unknown.
 
 ## Preserve user files
 
