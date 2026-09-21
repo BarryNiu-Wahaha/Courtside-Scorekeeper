@@ -1,154 +1,188 @@
-# CourtSide — basketball scorekeeping and team statistics
+# CourtSide
 
-CourtSide is a basketball scorekeeping and statistics platform for one university team. Scorekeepers share one upload PIN, with one scorekeeper responsible for each game. A separate admin PIN controls roster management and corrections to uploaded games. The platform connects courtside recording to a hosted Python backend, a shared MySQL database, and a statistics website.
+### From courtside events to trustworthy team analytics
 
-## Features
+**An end-to-end data engineering and full-stack project built for a university basketball team.** CourtSide turns live game actions into validated records in MySQL, then publishes player and team statistics through a public dashboard. It connects offline browser capture, Python ingestion, relational data modeling, a Flask API, and cloud deployment in one working system.
 
-- Record shots, rebounds, assists, steals, blocks, turnovers, fouls, and opponent statistics.
-- Manage permanent player identities, enrollment years, graduation status, and game-specific guests.
-- Load the latest Admin roster when the hosted scorekeeper opens or creates a game; preserve cached players offline and exclude obsolete built-in defaults from official selection.
-- Select squads and starters, make substitutions, and track playing minutes.
-- Preserve event history and apply corrections without double-counting plays.
-- Upload finished games remotely using the shared scorekeeper PIN.
-- Save games locally while offline and retry uploads when connectivity returns.
-- View game results, player statistics, shooting percentages, and minutes on the statistics website.
-- Explore the public dashboard by Spring/Fall season, calendar year, or career; filter official/friendly games, search players, and view averages, leaders, game reports, and estimated pace/efficiency.
-- Export CSV files for analysis and JSON backups for restoring the local workspace.
+**[Live dashboard](https://courtside-team.pages.dev/) · [Scorekeeper](https://courtside-team.pages.dev/Front) · [Architecture](#architecture) · [Engineering highlights](#engineering-highlights) · [Run locally](#run-locally)**
 
-## Remote workflow
+**Core stack:** Python · SQL / MySQL · Flask · JavaScript · HTML / CSS · Docker · Gunicorn · Cloudflare Pages · Render · Aiven
 
-1. One scorekeeper records a game for the team and finishes it locally.
-2. The app saves events, squad selections, and playing time locally.
-3. The scorekeeper enters the shared PIN and uploads the finished game when connected to the internet.
-4. The hosted Python backend checks access, validates and converts the data, and writes it into MySQL automatically.
-5. The backend publishes a static statistics snapshot. Public visitors read that snapshot without a PIN, even while the backend or database is asleep.
+## Project at a glance
 
-Repeated submissions do not create duplicate events. Uploaded games are locked for scorekeepers. The admin can correct any uploaded game, manage the shared roster, and delete or restore games. Corrections preserve the game's identity and audit history. Database saving and website publication have separate status messages; publication can be retried without uploading another copy of the game. Scorekeepers do not need to export CSVs or run Python commands for remote uploads.
+| | |
+| --- | --- |
+| **Problem** | Game recording, roster changes, corrections, and statistics need a consistent source of truth, even when courtside connectivity is unreliable. |
+| **Solution** | Capture plays locally, validate and store complete game uploads transactionally, and publish a separate dataset for public analytics. |
+| **My engineering scope** | Data contracts, ingestion and validation, SQL schema and migrations, backend APIs, browser state management, analytics, automated testing, and deployment configuration. |
+| **Users** | Scorekeepers record games; an admin manages the official record; teammates and visitors explore results without signing in. |
+| **Primary focus** | Data integrity, reproducible calculations, recoverable failures, and an interface people can use during a game. |
 
-The backend and database run on remote hosting, so a scorekeeper's personal computer does not need to stay on. Database credentials remain on the server; the browser communicates with the backend.
+## See the product
+
+**Public analytics:** season, year, and career filters; player leaders; searchable profiles; shooting splits; and game reports.
+
+![CourtSide dashboard showing season filters, team metrics, and player leader cards](docs/assets/dashboard.png)
+
+<details>
+<summary><strong>View the courtside recording interface</strong></summary>
+
+![CourtSide tablet scorekeeper showing the current five players, stat buttons, clock, and event history](docs/assets/scorekeeper.png)
+
+The recorder supports 13 event types, both teams' statistics, substitutions, playing-time tracking, corrections, and CSV/JSON exports. Its standalone build works offline without external scripts or stylesheets.
+
+</details>
+
+*Screenshots use demonstration game data. They illustrate the implemented UI, not measured team performance.*
+
+## Skills demonstrated
+
+| Area | What I implemented | Where to inspect it |
+| --- | --- | --- |
+| **Data engineering / ETL** | CSV ingestion, explicit data contracts, UTF-8 and timestamp normalization, full-file validation, duplicate-safe imports, and atomic participation snapshots. | [Validation](scorekeeper_pipeline/validation.py), [pipeline CLI](scorekeeper_pipeline/__main__.py), [import logic](scorekeeper_pipeline/database.py) |
+| **SQL and relational modeling** | Stable player identities, event-level records, composite keys, foreign keys, check constraints, indexes, historical snapshots, and additive migrations. | [Core schema](sql/schema.sql), [remote schema](sql/remote.sql), [analytical SQL](sql/queries.sql) |
+| **Backend engineering** | Flask REST endpoints, separate scorekeeper/admin permissions, signed expiring sessions, atomic uploads, optimistic concurrency, and correction audit history. | [API](scorekeeper_remote/app.py), [authentication](scorekeeper_remote/auth.py), [repository](scorekeeper_remote/repository.py) |
+| **Analytics engineering** | Defined metric denominators, appearance-based averages, weighted shooting rates, season/category filtering, and completeness checks for pace and efficiency estimates. | [Statistics](scorekeeper_remote/statistics.py), [dashboard calculations](site/analytics.js), [metric definitions](docs/public-dashboard.md) |
+| **Frontend engineering** | Responsive tablet/mobile layouts, event-driven recording, elapsed-time clocks, local persistence, backup recovery, and synchronization with the Admin roster. | [Game engine](src/engine.js), [roster/lineup engine](src/team.js), [browser application](src/app.js) |
+| **Cloud and deployment** | A Dockerized Python service, managed MySQL with verified TLS, static site publication, environment-based configuration, and deployment documentation. | [Dockerfile](Dockerfile), [Render configuration](render.yaml), [publisher](scorekeeper_remote/publishing.py), [deployment guide](docs/remote-deployment.md) |
+| **Quality and reliability** | Unit tests, API tests, isolated MySQL integration tests, and real-browser checks for retries, corrections, offline recording, persistence, and responsive layouts. | [Test suites](tests), [MySQL test runner](tests/run_mysql_tests.py), [browser regression tests](tests/browser-remote.cjs) |
+| **Product and technical communication** | Separate recording, administration, and public-viewing workflows; documented schemas, operating procedures, metric definitions, and design decisions. | [User guide](docs/scorekeeper-guide.md), [API guide](docs/remote-api.md), [design documents](docs/superpowers/specs) |
 
 ## Architecture
 
-The [public dashboard guide](docs/public-dashboard.md) explains period filters, metric definitions, recording completeness, and the additive database migration required for the dashboard release. Public readers need no PIN; upload and admin access retain their existing PIN roles.
-
-Latest development handoff: [September 20 session status](docs/superpowers/plans/2026-09-20-session-handoff.md). The real 37-player roster is imported, hosted game upload/publication works, and the updated dashboard is deployed. The published site includes season player groups, both-team game overviews and scorekeeper navigation. Next steps are test-game cleanup, hosted admin correction checks and real-device validation.
-
-| Component | Responsibility |
-| --- | --- |
-| Scorekeeper frontend | Recording, roster selection, substitutions, local saving, and uploads |
-| Hosted Python backend | PIN sessions, validation, atomic game uploads, admin corrections, and publishing |
-| MySQL database | Shared player, game, event, and participation records |
-| Statistics website | Public game results, player totals, shooting percentages, and minutes from published snapshots |
-| Python CSV importer | Local imports from exported files |
-
-## Deployment
-
-The deployment package targets **Cloudflare Pages Free**, **Render Free**, and **Aiven MySQL Free**, using their included subdomains. See [remote deployment setup](docs/remote-deployment.md) for configuration and [remote API setup](docs/remote-api.md) for migration commands. Deployment progress as of 2026-09-20: the backend is hosted at https://courtside-api-hrhm.onrender.com and the website at https://courtside-team.pages.dev/. The dashboard's additive migration, Render deployment and Cloudflare publication are complete. Public HTTP checks confirmed the new dashboard controls and scorekeeper navigation. See the [latest handoff](docs/superpowers/plans/2026-09-20-session-handoff.md) for evidence and remaining checks.
-
-Public results are static files and do not depend on an awake API or database. Uploads and admin changes require those services to be running. An already-open scorekeeper continues recording during a connection loss; local backups remain important. The standalone HTML is also available for offline use. Free-service quotas and availability limits are described in the deployment guide.
-
-## Standalone scorekeeper
-
-Open **Front.html** in a modern browser to use the standalone offline scorekeeper. The instructions below cover this standalone version and its local CSV workflow. The HTML contains all its styles, JavaScript and roster; it does not load CDNs or call an API. The original is preserved in `backups/Front.original.html`.
-
-## Record a game
-
-1. Create a game with its date, opponent, quarter length and overtime length. Default lengths are 10 and 5 minutes.
-2. Select 5–15 designated players and exactly five starters. Add guests for this game if needed; they count toward the same limit. Only the five on court appear in the scoring panel.
-3. Press **Start game** at tip-off. Use **Pause** for stoppages and **Resume** when play resumes. **Substitute** pauses the clock and opens the designated squad: select the next five and confirm, then resume manually. Cancel also leaves the clock paused. While paused, **Adjust** accepts a remaining time such as `06:31`; accumulated minutes stay unchanged.
-4. Select a player and tap a stat. Made shots, missed shots and every other stat each create one event. Selecting players or controlling the clock does not create stat events. You can record a late play while paused after the game has started.
-5. Switch to **Opponent** to record team-level opponent stats. Those events have no player identity.
-6. **Undo last** marks the latest active event as voided. Its row remains in the log; its effect on the score and box score is removed. Event IDs are never reused. This does not undo substitutions.
-7. While paused, use **Next quarter** or **Next overtime**. The new period begins paused. Regulation has four quarters; overtime is labeled `OT1`, `OT2`, etc.
-8. **End game**, then **Export Game Event Log**. In **Box score**, use **Export participation CSV** for minutes and designated bench players. A completed game can be reopened for corrections. **New game** keeps prior games in **Game history**.
-
-The English layout is optimized for landscape iPad. Portrait uses a two-column player/action layout with the event feed underneath; narrow phones show the five players in a compact grid. Minutes follow running game-clock time and stop during pauses or at period expiry. Legacy archived games show unavailable minutes; continuing an older game requires selecting a squad and current five, and its newly measured minutes are labeled partial.
-
-## Players and saving
-
-The original 27 Chinese names and jersey numbers are retained. **Manage** adds university players, edits names/numbers/enrollment years, and imports or exports a roster CSV. Permanent IDs are independent of names and jersey numbers. Changes refresh games that have not started, including their on-court and player-selection panels, while preserving selected starters and guests. Started, finished, and upload-locked games retain their original player snapshots. Newly added teammates can be selected through **Choose game players** before tip-off. Missing players in a CSV import remain saved, and there is no delete-player action that could orphan historical data.
-
-Status becomes `graduated` on September 1 of enrollment year + four, otherwise `Astudent`. Unknown enrollment year gives `Unknown`; an optional manual override takes precedence. All statuses remain eligible for selection. Guests are distinct people locally but export as one anonymous **Guest Player** identity for database statistics. See the [roster and lineup walkthrough](docs/roster-lineups.md) and [blank roster CSV template](examples/roster-template.csv). Export your existing roster first when updating players so their IDs are preserved.
-
-The default roster has stable `P_DEFAULT_...` IDs. Added players receive `P_<UUID>` IDs. A legacy roster found under the old `basketballStats` storage key is copied with stable legacy IDs; that original key is untouched. Existing legacy aggregate scores are not fabricated into event logs. Use the original HTML at its original browser location to export an old game before replacing it if needed.
-
-Games and roster save under the browser's `courtside.v2` localStorage key. Running clocks use a saved wall-clock deadline, so refreshes and background timer throttling do not reset them. The clock continues while the tab is hidden until paused or it reaches zero. Keep the device's system clock unchanged during a game.
-
-Use **Download backup** regularly. Its JSON file includes the roster, IDs, all games and voided events. The backup freezes the clock at export time without pausing your live game. **Restore backup** validates a file before replacement and asks for confirmation. Move this backup to another device to preserve your player identities and history. Storage is local to the browser/location; clearing browser data can remove it. A visible warning appears when saving fails. If saved data is damaged, **Download original recovery data** preserves its original bytes while **Download backup** still saves your new work. CSV is the analysis dataset; JSON is the complete restorable workspace.
-
-## CSV contract
-
-There are three separate exports: **roster CSV** for all permanent university players, **event log CSV** for plays, and **participation CSV** for the game squad, starters, appearances, and minutes. Guests keep separate event rows under `P_GUEST`; their participation counts and time are added together. Individual guest names are not included in these database exports. JSON backup retains the full local workspace.
-
-One event per row, including voided rows. UTF-8 with BOM, CRLF line endings, CSV escaping for commas, quotes and newlines. Headers:
-
-```text
-game_id,event_id,game_date,opponent,player_id,player_name,jersey_number,quarter,game_clock,event_type,points_value,recorded_at,team_side,is_voided
+```mermaid
+flowchart LR
+    A[Scorekeeper browser] -->|Save locally| B[Local storage and JSON backups]
+    A -->|Finished game upload| C[Flask API on Render]
+    A -->|CSV exports| D[Python validation and import CLI]
+    E[Admin interface] -->|Roster and corrections| C
+    C -->|Validated transaction| F[(MySQL on Aiven)]
+    D -->|Validated transaction| F
+    F -->|Read committed records| G[Python snapshot publisher]
+    G -->|Public JSON and site assets| H[Cloudflare Pages]
+    H --> I[Public analytics dashboard]
+    C -->|Latest official roster| A
 ```
 
-| Field | Meaning |
+There are two ingestion paths: authenticated game uploads for everyday use and a Python CSV pipeline for local imports. Both validate data before persistence. The public dashboard reads a published JSON snapshot, so visitors do not need a live database connection or an awake backend.
+
+Database writes and publication are separate outcomes. A successful save remains committed if publishing fails; the admin can retry publication without submitting the game again. The hosted service publishes the current database snapshot together with the frontend assets.
+
+## Engineering highlights
+
+### 1. Reliable ingestion with explicit failure behavior
+
+The event pipeline validates types, game identity, player attribution, event codes, points, dates, and timestamps before writing. Invalid input rejects the complete file with a row-level explanation. Supported cleanup is explicit; missing values and inconsistent records require correction at the source.
+
+The database uses an InnoDB transaction for each event import and locks the game row to serialize imports for the same game. Any conflict or database failure rolls back the transaction.
+
+**Example:** importing the same game twice does not double its score. `(game_id, event_id)` identifies each play. An older export cannot reactivate an already-voided play, and a conflicting event payload is rejected.
+
+### 2. Historical accuracy while the roster changes
+
+Player IDs are independent of names and jersey numbers. The official roster stores current details, while game events and participation retain historical names and numbers.
+
+The hosted scorekeeper checks the Admin roster on opening and before creating a game. Official selection excludes obsolete built-in defaults; local-only identities remain in JSON backups. Unstarted games refresh their choices, while started games retain their player identities and recorded minutes. A failed roster check keeps the saved data and reports that freshness could not be verified.
+
+### 3. Retry safety and auditable corrections
+
+A pending upload retains its exact payload across retries. Ambiguous network failures keep the game locked for retry instead of assuming the server rejected it. The backend recognizes duplicate submissions, and admin corrections require the expected game version to prevent stale edits from overwriting newer ones.
+
+Voided plays remain in the event log, and administrative changes preserve prior documents in an audit table. Participation snapshots carry a revision and content hash so stale or conflicting snapshots cannot silently replace newer playing-time data.
+
+### 4. Analytics that account for missing data
+
+Games played comes from participation, including zero-stat appearances and excluding unused bench players. Shooting percentages divide total makes by total attempts. Aggregate pace and ratings use eligible possessions and duration.
+
+Missing opponent detail stays unavailable rather than becoming zero. Partial playing time is labeled, and pace/efficiency estimates require sufficient recording coverage. [Read the metric definitions and eligibility rules.](docs/public-dashboard.md#metric-definitions)
+
+### 5. Practical cloud and security boundaries
+
+Public readers use static files, while authenticated writes go through the API. The application separates scorekeeper and admin permissions, limits failed PIN attempts, uses expiring signed sessions, and keeps credentials out of published assets. Remote MySQL connections verify the TLS certificate and hostname.
+
+The deployment targets one team and free-tier hosting. Backend cold starts and offline devices are handled through visible status, local saving, and retries. The release workflow deploys the backend on Render, then publishes the website and database snapshot to Cloudflare Pages.
+
+## Data model
+
+| Table | Grain and purpose |
 | --- | --- |
-| `game_id` | Unique game identifier: `GYYYYMMDD_<UUID>` |
-| `event_id` | Increasing integer within a game; combine with game_id as a key |
-| `game_date` | Local game date, `YYYY-MM-DD` |
-| `opponent` | Opposing team name |
-| `player_id` | Permanent player identity; empty for opponent events |
-| `player_name`, `jersey_number` | Player details at event time; empty for opponent events |
-| `quarter` | `1`–`4`, then `OT1`, `OT2`, and onward |
-| `game_clock` | Remaining period time, `MM:SS` |
-| `event_type` | One of the 13 codes below |
-| `points_value` | 0, 1, 2, or 3; missed shots and non-scoring actions are 0 |
-| `recorded_at` | Actual event-recording timestamp in ISO 8601 UTC, including `Z` |
-| `team_side` | `HOME` = our team; `AWAY` = opponent (not venue assignment) |
-| `is_voided` | Lowercase `true` or `false`; exclude `true` from statistics |
+| `players` | One permanent player identity; current roster attributes. |
+| `games` | One game; stable ID, date, and opponent. |
+| `events` | One recorded play per `(game_id, event_id)`; historical player details and void status. |
+| `game_participation` | One game/player record; designated status, starts, appearances, and playing milliseconds. |
+| `participation_snapshots` | One participation revision per game; coverage and content hash. |
+| `remote_uploads` | One remote upload record per game; version, original hash, payload, and deletion state. |
+| `remote_audit` | Prior documents retained for administrative changes. |
+| `remote_game_details` | Game category, duration, and recording completeness. |
+| `remote_publication` | Publication revision and status, separate from successful database writes. |
 
-```text
-2PT_MADE  2PT_MISSED  3PT_MADE  3PT_MISSED  FT_MADE  FT_MISSED
-OFF_REBOUND  DEF_REBOUND  ASSIST  STEAL  BLOCK  TURNOVER  FOUL
-```
+The [SQL schema](sql/schema.sql) and [remote extensions](sql/remote.sql) define the relationships and constraints. The [pipeline guide](docs/mysql-pipeline.md) explains imports, conflict handling, migration behavior, and example queries.
 
-For local CSV imports, see [CSV → Python → MySQL setup](docs/mysql-pipeline.md). It uses your `msba` environment and defaults to `localhost:3306`, database `scorekeeper`.
+## Run locally
 
-For a simple CSV-only analysis without extra dependencies:
-
-```python
-import csv
-
-with open("your-game_events.csv", encoding="utf-8-sig", newline="") as file:
-    events = list(csv.DictReader(file))
-
-active = [e for e in events if e["is_voided"] == "false"]
-our_points = sum(int(e["points_value"]) for e in active if e["team_side"] == "HOME")
-```
-
-Repeated exports of the same game retain event IDs. The MySQL importer deduplicates by `(game_id, event_id)` and applies void flags so corrected exports do not double count points or retain cancelled plays. It rejects conflicting immutable data and prevents older exports from reactivating voided plays.
-
-## Database records
-
-| Table | Stored data |
-| --- | --- |
-| `players` | Permanent player identities, roster details, and enrollment information |
-| `games` | Game identifiers, dates, and opponents |
-| `events` | Individual plays, player snapshots, points, and void flags |
-| `game_participation` | Designated players, starters, appearances, and `played_ms` |
-| `participation_snapshots` | Participation revision, coverage, and content hash |
-
-`played_ms` stores playing time in milliseconds; divide by `60000` to obtain minutes. Partial coverage identifies games where only part of the playing time was tracked.
-
-For the local CSV workflow, import the event log and participation CSV for each game. Import the roster initially and whenever player details change.
-
-## Development and verification
-
-Node 24 is used for the development scripts; the app itself does not need Node.
+### Try the scorekeeper
 
 ```sh
-node --test tests/engine.test.cjs tests/team.test.cjs
+git clone https://github.com/BarryNiu-Wahaha/Courtside-Scorekeeper.git
+cd Courtside-Scorekeeper
+python -m http.server 8000 --bind 127.0.0.1
+```
+
+Open **http://127.0.0.1:8000/Front.html**. No database or API credentials are needed for local recording. You can also open `Front.html` directly in a desktop browser.
+
+Create a game, select 5–15 squad members and five starters, then start the clock and record plays. Use **Download backup** to preserve the browser's workspace. The [user guide](docs/scorekeeper-guide.md) covers recording, corrections, CSV contracts, and recovery.
+
+### Explore the Python ingestion pipeline
+
+Python 3.12 and Node.js 24 match the container's runtimes. The browser app itself does not require Node.
+
+```sh
+python -m pip install -r requirements.txt
+python -m scorekeeper_pipeline validate path/to/game_events.csv
+```
+
+Validation does not need a database. To create a local MySQL schema and import the validated file:
+
+```sh
+python -m scorekeeper_pipeline init-db --user YOUR_MYSQL_USER
+python -m scorekeeper_pipeline import path/to/game_events.csv --user YOUR_MYSQL_USER
+```
+
+Credentials are supplied through the terminal or environment, not committed files. For an existing database, use the documented migration command instead of assuming initialization upgrades its schema. See [local pipeline setup](docs/mysql-pipeline.md) and [hosted API setup](docs/remote-api.md).
+
+## Testing and verification
+
+The tests exercise data integrity and recovery behavior as well as calculations:
+
+- Duplicate and conflicting imports, rollback, concurrent writes, and additive migrations against an isolated MySQL instance.
+- Invalid API input, role boundaries, corrections, publication failure, and unchanged retry payloads.
+- Roster synchronization, starter preservation, clock expiry, substitutions, voided plays, and backup restoration.
+- Dashboard filters, missing metrics, guest aggregation, zero-stat appearances, and responsive browser layouts.
+
+```sh
+# JavaScript unit tests
+node --test tests/engine.test.cjs tests/team.test.cjs tests/remote.test.cjs tests/analytics.test.cjs
+
+# Python validation, API, publication, and analytics tests
+python -m unittest discover -s tests -p "test_*.py" -v
+
+# Build the standalone UI and exercise it in a real browser
 node build.cjs
 node tests/browser-smoke.cjs
 ```
 
-`src/engine.js` owns events, CSV, validation and clock logic; `src/team.js` owns roster parsing/status, lineups, and participation; `src/app.js` owns browser interaction and persistence; `src/styles.css` and `src/template.html` define the UI. `src/roster.js` holds the default roster. Edit those sources and run the build to regenerate the single-file `Front.html`.
+Python discovery skips database integration cases unless their test environment is configured. Run `python tests/run_mysql_tests.py` for the isolated database suite; it requires an installed MySQL server binary (`MYSQLD_PATH`). Browser tests use Microsoft Edge on Windows or a Chromium executable set through `EDGE_PATH`. See the [deployment guide](docs/remote-deployment.md#working-locally) for hosted browser-test build commands. Real iPad Safari/touch validation remains a separate device check.
 
-The browser smoke test uses installed Microsoft Edge on Windows (or the executable in `EDGE_PATH`) through its debugging protocol. It records real UI actions, verifies downloaded CSV, reloads persisted games and captures screenshots in `tests/artifacts/`. It runs with network access disabled. Viewport tests approximate iPad layouts; real iPad Safari/touch behavior still needs a device check. Files-app HTML previews are not a substitute for a browser runtime.
+## Explore the repository
 
-For browser access through a local development server, run `python -m http.server 8000` in this folder and visit `/Front.html`. An iPad can use the computer's LAN address while connected to the same network. This server is for previewing the page; persistent offline installation on iPad would be a separate hosting/PWA step. No database is involved.
+```text
+src/                    Browser game engine, roster logic, persistence, and UI
+site/                   Public dashboard, analytics, and admin interface
+scorekeeper_pipeline/   CSV validation, import CLI, and MySQL transactions
+scorekeeper_remote/     Flask API, authentication, repository, and publication
+sql/                    Schema, migrations, constraints, and analytical queries
+tests/                  Unit, API, MySQL integration, and browser tests
+docs/                   User guides, data contracts, design, and deployment notes
+```
+
+**Documentation:** [Scorekeeper guide](docs/scorekeeper-guide.md) · [Roster and lineups](docs/roster-lineups.md) · [CSV → MySQL pipeline](docs/mysql-pipeline.md) · [API setup](docs/remote-api.md) · [Dashboard metrics](docs/public-dashboard.md) · [Cloud deployment](docs/remote-deployment.md)
