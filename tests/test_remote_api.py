@@ -43,6 +43,20 @@ class RemoteApiTests(unittest.TestCase):
         response=self.client.post('/api/games',json=payload,headers=self.auth())
         self.assertEqual(response.status_code,400); self.assertEqual(self.repo.games,{})
 
+    def test_admin_saved_roster_is_returned_to_scorekeepers_and_published(self):
+        rows,_=upload()
+        columns=('player_id','player_name','jersey_number','enrollment_year','status_override')
+        self.repo.apply_roster_csv(csv_text(columns,rows))
+        rows[0].update(player_name='Updated official name',jersey_number='77')
+        rows.append(dict(player_id='P6',player_name='New teammate',jersey_number='98',enrollment_year='2026',status_override=''))
+        response=self.client.put('/api/admin/roster',json={'roster_csv':csv_text(columns,rows)},headers=self.auth('admin'))
+        self.assertEqual(response.status_code,200,response.get_json())
+        players=self.client.get('/api/roster').get_json()['players']
+        self.assertEqual(len(players),6)
+        self.assertEqual(next(p for p in players if p['player_id']=='P1')['player_name'],'Updated official name')
+        self.assertEqual(next(p for p in players if p['player_id']=='P1')['jersey_number'],77)
+        self.assertEqual(self.published[-1]['roster'],players)
+
     def test_scorekeeper_cannot_admin_and_bad_pin_is_rejected(self):
         bad=self.client.post('/api/session',json={'pin':'wrong','role':'admin'})
         self.assertEqual(bad.status_code,401)

@@ -25,6 +25,29 @@ test('roster refresh leaves started, finished, and upload-locked games unchanged
   assert.equal(team().refreshPregameRoster(g,[{id:'P_0',name:'Changed',number:99}]),false);assert.deepEqual(g,before);
  }
 });
+
+test('official roster replaces selectable defaults, archives local people and resets obsolete pregame selections',()=>{
+ const T=team(),ready=game(),played=game(),ids=ready.roster.slice(0,5).map(p=>p.id);
+ T.configure(ready,ids,ids);T.configure(played,ids,ids);E.start(played,1000);E.pause(played,2000);
+ const original=structuredClone(played),s={version:2,roster:roster(),games:[ready,played],currentGameId:ready.id};
+ const official=Array.from({length:6},(_,i)=>({id:'P_OFFICIAL_'+i,name:'Official '+i,number:i+20}));
+ T.applySharedRoster(s,official);
+ assert.deepEqual(s.roster,official);assert.equal(s.localRosterArchive.length,16);assert.deepEqual(ready.roster,official);
+ assert.equal(ready.lineup,undefined);assert.equal(ready.squad,undefined);assert.deepEqual(played,original);E.validateState(s);
+ official[0].name='Updated official';T.applySharedRoster(s,official);
+ assert.equal(s.roster[0].name,'Updated official');assert.equal(ready.roster[0].name,'Updated official');assert.equal(s.localRosterArchive.length,16);
+ assert.ok(E.backup(s).localRosterArchive.some(p=>p.id==='P_0'));
+ const invalid=E.backup(s);invalid.localRosterArchive[0].number=-1;assert.throws(()=>E.validateState(invalid));
+});
+
+test('official roster preserves valid starters and guests but removes absent bench players',()=>{
+ const T=team(),g=game(),guest={id:'GUEST_keep',name:'Game guest',number:99,guest:true};g.roster.push(guest);
+ const five=['P_0','P_1','P_2','P_3',guest.id];T.configure(g,[...five,'P_4'],five);
+ const s={version:2,roster:roster(),games:[g],currentGameId:g.id};T.applySharedRoster(s,roster().slice(0,4));
+ assert.deepEqual(g.lineup,five);assert.deepEqual(g.squad,five);assert.equal(g.roster.length,5);assert.ok(g.roster.some(p=>p.guest));assert.equal(g.participation.P_4,undefined);E.validateState(s);
+ const before=structuredClone(s);assert.throws(()=>T.applySharedRoster(s,[]));assert.deepEqual(s,before);
+ assert.throws(()=>T.applySharedRoster(s,[s.roster[0],s.roster[0]]));assert.deepEqual(s,before);
+});
 test('September cutoff, override, and unknown year',()=>{const T=team();assert.equal(T.status({enrollmentYear:2022},new Date(2026,7,31)),'Astudent');assert.equal(T.status({enrollmentYear:2022},new Date(2026,8,1)),'graduated');assert.equal(T.status({enrollmentYear:2022,statusOverride:'Astudent'},new Date(2026,8,1)),'Astudent');assert.equal(T.status({}),'Unknown');});
 test('roster CSV round trips Unicode and quoted names, retains missing people, rejects duplicate identities',()=>{const T=team(),r=[{id:'P_LEGACY_1',name:'张,三"',number:7,enrollmentYear:2022,statusOverride:null}];const out=T.parseRoster(T.rosterCSV(r),[{id:'old',name:'Old',number:7}]);assert.equal(out.length,2);assert.equal(out.find(p=>p.id===r[0].id).name,r[0].name);assert.throws(()=>T.parseRoster(T.rosterCSV([...r,...r]),[]));assert.throws(()=>T.parseRoster('player_id,player_name,jersey_number,enrollment_year,status_override\nP_GUEST,Guest,0,,',[]));});
 test('squad limits and starters are enforced atomically',()=>{const T=team(),g=game(),ids=g.roster.map(p=>p.id);assert.throws(()=>T.configure(g,ids,ids.slice(0,5)));assert.equal(g.squad,undefined);assert.throws(()=>T.configure(g,ids.slice(0,10),ids.slice(0,4)));T.configure(g,ids.slice(0,15),ids.slice(0,5));assert.equal(g.squad.length,15);assert.throws(()=>T.substitute(g,[...ids.slice(0,4),ids[15]]));assert.deepEqual(g.lineup,ids.slice(0,5));});

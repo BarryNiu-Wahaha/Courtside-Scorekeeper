@@ -11,6 +11,14 @@ test('CSV round trips quoted Unicode and multiline fields',()=>{const rows=[{nam
 test('request rejects HTTP errors with status and keeps upload payload',async()=>{const g=game(),payload=R.prepare(g,E,T);const c=new R.Client('https://api.example',async()=>({ok:false,status:503,json:async()=>({error:'Database unavailable'})}));await assert.rejects(c.upload(payload),e=>e.status===503);assert.deepEqual(g.remote.payload,payload);});
 test('client sends bearer role token and exact bundle',async()=>{let seen;const c=new R.Client('https://api.example/',async(url,options)=>{seen={url,options};return {ok:true,status:200,json:async()=>({game_id:'G1'})};});c.token='session';const result=await c.upload({finished:true});assert.equal(result.game_id,'G1');assert.equal(seen.url,'https://api.example/api/games');assert.equal(seen.options.headers.Authorization,'Bearer session');assert.equal(seen.options.body,'{"finished":true}');});
 test('mixed content and URL credentials are rejected',()=>{assert.throws(()=>new R.Client('https://user:pass@example.com'),/URL/i);assert.throws(()=>new R.Client('http://example.com'),/HTTPS/i);});
+
+test('roster checks use a bounded timeout and report roster-specific failure',async()=>{
+ const c=new R.Client('https://api.example',async(url,options)=>{
+  assert.equal(options.cache,'no-store');assert.equal(options.method,'GET');
+  return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError')),{once:true}));
+ });
+ await assert.rejects(c.request('/api/roster','GET',undefined,5),/roster check timed out.*saved roster/i);
+});
 test('public aggregation uses participation appearances and excludes missing minutes',()=>{const snapshot={roster:[],games:[{home_points:2,away_points:0,coverage:'complete',players:[{player_id:'P1',player_name:'A',played_ms:60000,played_count:1,stats:{points:2,fgm:1,fga:1}}]},{home_points:0,away_points:0,coverage:'partial',players:[{player_id:'P1',player_name:'A',played_ms:30000,played_count:1,stats:{points:0}}]}]};const result=R.totals(snapshot);assert.equal(result.players[0].appearances,2);assert.equal(result.players[0].played_ms,90000);assert.equal(result.players[0].partial,true);assert.equal(result.players[0].stats.points,2);assert.equal(result.wins,1);assert.equal(result.ties,1);});
 
 test('definitive validation rejection unlocks a never-accepted game',()=>{const g=game();R.prepare(g,E,T);R.failed(g,{status:400});assert.equal(g.remote,undefined);});

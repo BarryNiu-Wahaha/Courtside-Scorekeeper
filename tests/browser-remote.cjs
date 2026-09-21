@@ -18,6 +18,7 @@ async function value(selector,value){await evaluate(`document.querySelector(${JS
 const injection=`
 window.confirm=()=>true;
 window.__uploads=[];window.__adminWrites=[];window.__failUpload=true;
+window.__serverRoster=JSON.parse(localStorage.getItem('__testServerRoster')||'null')||${JSON.stringify(apiRoster)};
 const originalFetch=window.fetch.bind(window);
 window.fetch=async function(url,options={}){
  if(!String(url).startsWith('https://api.example'))return originalFetch(url,options);
@@ -27,7 +28,7 @@ window.fetch=async function(url,options={}){
  if(route==='/api/session'){if(window.__denyLogin)return rejected(401,'Invalid PIN');return response({token:'test-session',role:body.role});}
  if(route==='/api/games'){if(window.__rejectUpload)return rejected(400,'Invalid participation');window.__uploads.push(body);if(window.__hangUpload)return new Promise(()=>{});if(window.__failUpload){window.__failUpload=false;throw TypeError('Connection interrupted');}return response({game_id:${JSON.stringify(g.id)},version:1,publication:'pending'});}
  if(route==='/api/admin/games')return response({games:[{game_id:${JSON.stringify(g.id)},game_date:'2026-09-08',opponent:'Remote Hawks',version:1,deleted:false}],publication:{status:'pending'}});
- if(route==='/api/admin/roster'||route==='/api/roster'){if(options.method==='PUT'){if(window.__expireRoster){window.__expireRoster=false;return rejected(401,'Session expired');}window.__rosterSaving=true;await new Promise(r=>setTimeout(r,500));window.__adminWrites.push(body);return response({publication:'pending'});}return response({players:${JSON.stringify(apiRoster)}});}
+ if(route==='/api/admin/roster'||route==='/api/roster'){if(window.__rosterOffline)throw TypeError('Roster unavailable');if(options.method==='PUT'){if(window.__expireRoster){window.__expireRoster=false;return rejected(401,'Session expired');}window.__rosterSaving=true;await new Promise(r=>setTimeout(r,500));window.__adminWrites.push(body);window.__serverRoster=RemoteClient.parseCSV(body.roster_csv).rows.map(p=>({...p,jersey_number:Number(p.jersey_number),enrollment_year:p.enrollment_year?Number(p.enrollment_year):null,status_override:p.status_override||null}));localStorage.setItem('__testServerRoster',JSON.stringify(window.__serverRoster));return response({publication:'pending'});}return response({players:window.__serverRoster});}
  if(route==='/api/admin/publish')return response({publication:'published'});
  if(route.endsWith('/delete')||route.endsWith('/restore')){window.__adminWrites.push(body);return response({version:2,publication:'published'});}
  if(route.startsWith('/api/admin/games/')){if(options.method==='PUT'){window.__adminWrites.push(body);return response({version:2,publication:'pending'});}const doc={game_id:${JSON.stringify(g.id)},game_date:'2026-09-08',opponent:'Remote Hawks',version:1,deleted:false,upload:${JSON.stringify(upload)}};if(window.__legacyGame)doc.upload.participation_csv=doc.upload.participation_csv.split('\\r\\n')[0]+'\\r\\n';return response(doc);}
@@ -77,6 +78,7 @@ window.fetch=async function(url,options={}){
  assert.equal(await evaluate("document.querySelector('#roster-editor input').value"),'Unsaved roster edit');
  await click('#save-roster');await until('window.__rosterSaving===true');assert.equal(await evaluate("document.querySelector('#roster-editor input').disabled"),true);await until("!document.querySelector('#save-roster').disabled");
  assert.ok((await evaluate('window.__adminWrites[0].roster_csv')).includes('Unsaved roster edit'));
+ assert.equal(await evaluate("document.querySelector('#roster-editor input').value"),'Unsaved roster edit','Admin must display the roster read back after saving');
  await click('#admin-games button');await until("!document.querySelector('#editor').hidden");await value('#edit-category','friendly');await value('#edit-duration','45');await click('#edit-complete');await click('#event-editor input[type=checkbox]');await click('#save-game');await until("window.__adminWrites.length===2");
  const written=await evaluate('window.__adminWrites[1]');assert.equal(written.version,1);assert.ok(written.upload.events_csv.includes(',HOME,true'));assert.equal(await evaluate("document.querySelector('#admin-pin').value"),'');
  assert.deepEqual(written.upload.game_details,{category:'friendly',duration_ms:2700000,stats_complete:true});
@@ -88,5 +90,23 @@ window.fetch=async function(url,options={}){
  await click('#save-game');await until("document.querySelector('#admin-status').textContent.includes('Import participation')");
  await evaluate(`(()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(upload.participation_csv)}],'participation.csv',{type:'text/csv'}));const input=document.querySelector('#participation-file');input.files=dt.files;input.dispatchEvent(new Event('change'));})()`);
  await until("document.querySelector('#legacy-participation-note').hidden");assert.equal(await evaluate("document.querySelectorAll('#participation-editor tbody tr').length"),5);
- assert.deepEqual(errors,[]);console.log('Remote Edge smoke passed: public snapshot/box score, failed upload retained, exact retry, uploaded lock survives reload, PIN not stored, admin correction and publication.');
+ // A new scorekeeper sees the Admin-saved roster, without built-in demo identities.
+ await evaluate("localStorage.removeItem('courtside.v2')");
+ await send('Page.navigate',{url:base+'/Front.html'});await until("document.querySelector('#setup-dialog')?.open");
+ await until("JSON.parse(localStorage.getItem('courtside.v2')).roster.some(p=>p.name==='Unsaved roster edit')");
+ assert.equal(await evaluate("JSON.parse(localStorage.getItem('courtside.v2')).roster.length"),5);
+ assert.equal(await evaluate("JSON.parse(localStorage.getItem('courtside.v2')).localRosterArchive.length"),27);
+ await value('#setup-opponent','Roster freshness');await click('#setup-form button[type=submit]');await until("document.querySelector('#lineup-dialog').open");
+ assert.equal(await evaluate("document.querySelectorAll('[data-squad]').length"),5);assert.ok((await evaluate("document.querySelector('#squad-list').textContent")).includes('Unsaved roster edit'));
+ for(let i=0;i<5;i++){await click('[data-squad="P_'+i+'"]');await click('[data-starter="P_'+i+'"]');}await click('#lineup-confirm');
+ await evaluate("window.__serverRoster[0].player_name='Latest admin name';window.__serverRoster.push({player_id:'P_ADDED',player_name:'Newest teammate',jersey_number:98,enrollment_year:2026,status_override:null});localStorage.setItem('__testServerRoster',JSON.stringify(window.__serverRoster))");
+ await click('#roster-button');await click('#server-roster-button');await until("document.querySelector('#manage-list').textContent.includes('Latest admin name')");await click('#roster-dialog [data-close]');
+ assert.ok((await evaluate("document.querySelector('[data-player=\"P_0\"]').textContent")).includes('Latest admin name'));
+ await click('#lineup-button');assert.equal(await evaluate("!!document.querySelector('[data-squad=\"P_ADDED\"]')"),true);await click('#lineup-dialog [data-close]');
+ await click('#clock-button');await click('#clock-button');const recordedGame=await evaluate("JSON.stringify(JSON.parse(localStorage.getItem('courtside.v2')).games[0])");
+ await evaluate("window.__serverRoster[0].player_name='Next game name';localStorage.setItem('__testServerRoster',JSON.stringify(window.__serverRoster))");
+ await click('#new-game-button');await value('#setup-opponent','Next roster version');await click('#setup-form button[type=submit]');await until("document.querySelector('#lineup-dialog').open");
+ assert.ok((await evaluate("document.querySelector('#squad-list').textContent")).includes('Next game name'));assert.equal(await evaluate("JSON.stringify(JSON.parse(localStorage.getItem('courtside.v2')).games[0])"),recordedGame);await click('#lineup-dialog [data-close]');
+ const beforeFailure=await evaluate("localStorage.getItem('courtside.v2')");await evaluate('window.__rosterOffline=true');await click('#roster-button');await click('#server-roster-button');await until("document.querySelector('#roster-sync-status').textContent.includes('saved roster')");assert.equal(await evaluate("localStorage.getItem('courtside.v2')"),beforeFailure);
+ assert.deepEqual(errors,[]);console.log('Remote Edge smoke passed: uploads/Admin, saved roster readback, latest official roster on open and new game, no default duplicates, pregame panel refresh, history preservation and offline fallback.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{if(ws?.readyState===1){try{await send('Browser.close');}catch{}ws.close();}child?.kill();server.close();await delay(500);if(path.dirname(profile)===artifacts&&path.basename(profile).startsWith('browser-profile-remote-')){try{fs.rmSync(profile,{recursive:true,force:true,maxRetries:3,retryDelay:200});}catch{}}});

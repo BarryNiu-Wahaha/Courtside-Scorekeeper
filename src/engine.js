@@ -88,6 +88,7 @@
       for(const p of rs){check(p&&str(p.id)&&str(p.name)&&Number.isInteger(p.number)&&p.number>=0&&p.number<=99&&!ids.has(p.id));T.validatePlayer(p);ids.add(p.id);}
     };
     check(state&&state.version===2&&Array.isArray(state.games)); roster(state.roster);
+    if(state.localRosterArchive!==undefined)roster(state.localRosterArchive);
     const ids=new Set();
     for(const g of state.games){
       check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);

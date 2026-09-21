@@ -94,7 +94,11 @@
   $('undo-button').addEventListener('click',()=>run(()=>{const e=E.undo(current());if(e)toast(`Play #${e.event_id} voided. Stats updated.`);}));
   function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';$('setup-category').value='friendly';open('setup-dialog');}
   $('new-game-button').addEventListener('click',setup);
-  $('setup-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{
+  $('setup-form').addEventListener('submit',async e=>{e.preventDefault();
+    const button=$('setup-form').querySelector('[type="submit"]');if(button.disabled)return;
+    if(remoteBase){button.disabled=true;button.textContent='Checking team roster…';try{await syncSharedRoster();}finally{button.disabled=false;button.textContent='Create game →';}}
+    if(!$('setup-dialog').open||!$('setup-form').reportValidity())return;
+    run(()=>{
     const g=E.createGame({date:$('setup-date').value,opponent:$('setup-opponent').value,category:$('setup-category').value,minutes:Number($('setup-minutes').value),overtimeMinutes:Number($('setup-ot').value)},state.roster);
     if(current()?.running)E.pause(current());state.games.push(g);state.currentGameId=g.id;selectedId=null;side='HOME';$('setup-dialog').close();chooseLineup();
   });});
@@ -205,9 +209,30 @@
 
   // The hosted build injects only a public API address. PINs/tokens stay in memory.
   const remoteBase=globalThis.COURTSIDE_CONFIG?.apiBase||'';
-  let remoteClient=null,uploadBusy=false;
+  let remoteClient=null,uploadBusy=false,rosterSyncPromise=null;
+  function syncSharedRoster(){
+    if(!remoteBase)return Promise.resolve(false);
+    if(rosterSyncPromise)return rosterSyncPromise;
+    const status=$('roster-sync-status');status.hidden=false;
+    if(saveBlocked){status.textContent='Roster check paused until browser saving is restored. The saved roster was kept.';return Promise.resolve(false);}
+    status.textContent='Checking the latest team roster…';
+    rosterSyncPromise=(async()=>{
+      try{
+        if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);
+        const result=await remoteClient.request('/api/roster','GET',undefined,15000);
+        if(!Array.isArray(result.players)||result.players.some(p=>!p||typeof p.player_id!=='string'||!p.player_id))throw Error('Invalid shared roster response.');
+        const official=T.parseRoster(RemoteClient.csv(T.ROSTER_COLUMNS,result.players),[]);
+        T.applySharedRoster(state,official);save();manage();render();
+        if($('lineup-dialog').open&&!lineupDraft?.substitution){$('lineup-dialog').close();chooseLineup();}
+        status.textContent=`Team roster checked: ${official.length} players · ${new Date().toLocaleTimeString()}. ${current()?.started?'This game keeps its original players.':'New and unstarted games use the latest Admin roster.'}`;
+        return true;
+      }catch(error){status.textContent='Could not check the latest team roster. Using the saved roster. '+error.message;return false;}
+    })().finally(()=>{rosterSyncPromise=null;renderRemote();});
+    renderRemote();return rosterSyncPromise;
+  }
   function renderRemote(){
     const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
+    $('server-roster-button').disabled=!!rosterSyncPromise;
     $('hosted-nav').hidden=!remoteBase;
     if(remoteBase)document.querySelector('.brand').href='index.html';
     $('upload-complete').disabled=!!g?.remote?.payload;
@@ -239,17 +264,12 @@
     }catch(error){if(submissionStarted)RemoteClient.failed(g,error,priorUncertainty);else if(newlyPrepared)delete g.remote;save();$('upload-status').textContent=error.message+' Your local game is retained.';toast(error.message,true);}
     finally{if(remoteClient)remoteClient.token=null;uploadBusy=false;$('upload-submit').disabled=false;render();}
   });
-  $('server-roster-button').addEventListener('click',async()=>{
-    try{if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);const result=await remoteClient.request('/api/roster');
-      const csv=RemoteClient.csv(['player_id','player_name','jersey_number','enrollment_year','status_override'],result.players);
-      const merged=T.parseRoster(csv,state.roster);
-      confirm('Use the shared team roster?', 'Update this device’s roster from the server? '+rosterUpdateNote,()=>run(()=>{applyRoster(merged);toast('Shared roster downloaded. '+rosterUpdateNote);}));
-    }catch(error){toast(error.message,true);}
-  });
+  $('server-roster-button').addEventListener('click',async()=>{if(await syncSharedRoster())toast('Latest Admin roster downloaded. '+rosterUpdateNote);});
 
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderClock();});
   setInterval(renderClock,200);
   if(!saveBlocked&&refreshPregameRosters())save();
   render();
+  if(remoteBase)syncSharedRoster();
   if(!current()&&!saveBlocked)setup();
 })();

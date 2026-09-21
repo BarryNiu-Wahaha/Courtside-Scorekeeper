@@ -10,6 +10,16 @@ Enrollment year is optional. With automatic status, a player enrolled in 2022 be
 
 For bulk updates, first use **Export roster CSV**. Edit that file in a spreadsheet and keep each existing `player_id` unchanged. Then use **Import roster CSV**, review the additions and updates, and confirm. Players absent from the file remain in the roster. Import validates the entire file before any change is applied.
 
+### Hosted Admin roster
+
+In the hosted app, **Admin → University roster → Save roster** updates the shared database. The scorekeeper checks that roster when its page opens and before creating a game. **Manage → Download shared roster** checks immediately if the page is already open. Saving in Admin does not push a live update into another open tab; use that button or refresh the scorekeeper.
+
+The shared roster determines the selectable university players: old built-in defaults and local-only players are not mixed into it. Their identities remain in the JSON backup's `localRosterArchive`, and started games keep their original players, stats, and minutes. An unstarted game's valid squad, starters, and guests are preserved. If its selected five include players absent from the official roster, choose the squad and starters again.
+
+The roster status above the scorekeeper shows when the latest check succeeded. If the server is offline or takes longer than 15 seconds, the app keeps its saved roster and explicitly says it could not check for updates. A server waking from sleep may require another **Download shared roster** attempt. Empty or malformed responses do not erase the saved roster.
+
+A local CSV import still changes only this browser. For lasting changes shared by hosted scorekeepers, save them in Admin. A later successful shared-roster check restores the database's version of the selectable roster.
+
 For entirely new players, start with [the blank CSV template](../examples/roster-template.csv). The required columns, in order, are:
 
 ```csv

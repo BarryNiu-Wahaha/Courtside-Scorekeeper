@@ -36,14 +36,14 @@ class Client{
     if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('Use HTTPS for the backend URL.');
     this.base=url.href.replace(/\/$/,'');this.transport=transport;this.token=null;
   }
-  async request(path,method='GET',body){
-    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),240000);
+  async request(path,method='GET',body,timeoutMs=240000){
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
     try{
       const response=await this.transport(this.base+path,{method,headers:{'Content-Type':'application/json',...(this.token?{Authorization:'Bearer '+this.token}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:controller.signal,cache:'no-store'});
       let data;try{data=await response.json();}catch{throw Error('The backend is starting or unavailable. Your data is safe; try again shortly.');}
       if(!response.ok){const error=Error(data.error||'Request failed.');error.status=response.status;if(response.status===401)this.token=null;throw error;}
       return data;
-    }catch(error){if(error.name==='AbortError')throw Error('The upload timed out. Your game remains saved; retry to check whether it was received.');throw error;}
+    }catch(error){if(error.name==='AbortError')throw Error(path==='/api/roster'?'The roster check timed out. The saved roster was kept.':'The upload timed out. Your game remains saved; retry to check whether it was received.');throw error;}
     finally{clearTimeout(timer);}
   }
   async login(pin,role){const data=await this.request('/api/session','POST',{pin,role});this.token=data.token;return data;}

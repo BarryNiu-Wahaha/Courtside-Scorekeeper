@@ -6,6 +6,7 @@ CourtSide is a basketball scorekeeping and statistics platform for one universit
 
 - Record shots, rebounds, assists, steals, blocks, turnovers, fouls, and opponent statistics.
 - Manage permanent player identities, enrollment years, graduation status, and game-specific guests.
+- Load the latest Admin roster when the hosted scorekeeper opens or creates a game; preserve cached players offline and exclude obsolete built-in defaults from official selection.
 - Select squads and starters, make substitutions, and track playing minutes.
 - Preserve event history and apply corrections without double-counting plays.
 - Upload finished games remotely using the shared scorekeeper PIN.
