@@ -6,6 +6,21 @@
   const labels={'2PT_MADE':'2-point shot made','2PT_MISSED':'2-point shot missed','3PT_MADE':'3-point shot made','3PT_MISSED':'3-point shot missed',FT_MADE:'Free throw made',FT_MISSED:'Free throw missed',OFF_REBOUND:'Offensive rebound',DEF_REBOUND:'Defensive rebound',ASSIST:'Assist',STEAL:'Steal',BLOCK:'Block',TURNOVER:'Turnover',FOUL:'Personal foul'};
   let state={version:2,roster:DEFAULT_ROSTER.map((p,i)=>({...p,id:`P_DEFAULT_${String(i+1).padStart(3,'0')}`})),games:[],currentGameId:null};
   let selectedId=null, side='HOME', toastTimer, saveBlocked=false, rawSaved=null, confirmAction=null;
+  let feedbackTimer, inputMethod='keyboard';
+  document.addEventListener('pointerdown',()=>{inputMethod='pointer';document.documentElement.dataset.input='pointer';},true);
+  document.addEventListener('keydown',()=>{inputMethod='keyboard';document.documentElement.dataset.input='keyboard';},true);
+  function confirmPlay(event){
+    const feedback=$('action-confirmation');
+    clearTimeout(feedbackTimer);
+    feedback.textContent=`✓ #${event.event_id} · ${event.team_side==='HOME'?'#'+event.jersey_number+' '+event.player_name:event.opponent} · ${labels[event.event_type]}`;
+    feedback.classList.add('visible');
+    feedbackTimer=setTimeout(()=>feedback.classList.remove('visible'),1600);
+    if(event.points_value&&inputMethod==='pointer'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const score=$(event.team_side==='HOME'?'home-score':'away-score');
+      score.getAnimations().forEach(animation=>animation.cancel());
+      score.animate([{transform:'scale(1.045)'},{transform:'scale(1)'}],{duration:160,easing:'cubic-bezier(0.23, 1, 0.32, 1)'});
+    }
+  }
   const current=()=>state.games.find(g=>g.id===state.currentGameId)||null;
   function warn(text){$('storage-warning').textContent=text;$('storage-warning').hidden=false;$('save-status').textContent='● Backup recommended';}
   function toast(message,error=false){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,error?6500:3000);}
@@ -58,6 +73,7 @@
     $('participation-note').textContent=!g?.participation?'Minutes unavailable for games recorded before lineup tracking.':g.coverage==='partial'?'Partial minutes: tracking began when a lineup was chosen for this existing game.':'Minutes count running game-clock time only. Clock corrections do not change accumulated minutes.';
     const player=roster.find(p=>p.id===selectedId);
     const name=side==='AWAY'?(g?.opponent||'Opponent'):player?.name||'Who made the play?';
+    $('selected-player').classList.toggle('has-selection',!!player||side==='AWAY');
     $('selected-player').innerHTML=`<span class="selected-avatar">${side==='AWAY'?'A':player?player.number:'—'}</span><div><div class="selected-name">${html(name)}</div><div class="selected-description">${side==='AWAY'?'Team-level recording':player?'Recording for our team':'Select a player from the roster'}</div></div><span class="selection-tag">${side==='AWAY'?'OPPONENT':'OUR TEAM'}</span>`;
     $('home-side').classList.toggle('active',side==='HOME');$('away-side').classList.toggle('active',side==='AWAY');$('home-side').setAttribute('aria-pressed',side==='HOME');$('away-side').setAttribute('aria-pressed',side==='AWAY');
     document.querySelectorAll('[data-stat]').forEach(b=>b.disabled=!g||!g.started||g.finished||(side==='HOME'&&!player));
@@ -85,7 +101,7 @@
   $('home-side').addEventListener('click',()=>{side='HOME';render();});$('away-side').addEventListener('click',()=>{side='AWAY';render();});
   document.querySelectorAll('[data-stat]').forEach(b=>b.addEventListener('click',()=>run(()=>{
     const g=current();const event=E.recordEvent(g,b.dataset.stat,g.roster.find(p=>p.id===selectedId),side);
-    toast(`${event.team_side==='HOME'?'#'+event.jersey_number+' '+event.player_name:g.opponent} · ${labels[event.event_type]}`);
+    confirmPlay(event);
   })));
   $('clock-button').addEventListener('click',()=>run(()=>{const g=current();if(!g.lineup){chooseLineup();return;}g.running?E.pause(g):E.start(g);}));
   $('adjust-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;$('clock-input').value=E.clock(g);open('clock-dialog');});

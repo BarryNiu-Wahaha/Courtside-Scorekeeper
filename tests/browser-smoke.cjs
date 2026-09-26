@@ -86,9 +86,12 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  const csv=fs.readFileSync(path.join(artifacts,exportedName),'utf8');assert.ok(csv.startsWith('\uFEFFgame_id,'));assert.ok(csv.includes('牛天齐'));assert.ok(csv.includes(',HOME,true\r\n'));assert.equal(csv.split('\r\n').length,19);
  await click('#box-tab');assert.ok((await evaluate('document.querySelector("#box-table").textContent')).includes('牛天齐'));await click('#live-tab');
  await verifySubstitutions();
- await click('#participation-export-button');await delay(150);
+ await click('#participation-export-button');
+ const participationPath=path.join(artifacts,(await current()).id+'_participation.csv');
+ for(let i=0;i<100&&!fs.existsSync(participationPath);i++)await delay(100);
  assert.ok(fs.existsSync(path.join(artifacts,(await current()).id+'_participation.csv')));
  await click('#finish-button');await click('#confirm-yes');assert.equal((await current()).finished,true);assert.equal(await evaluate('document.querySelector("[data-stat]").disabled'),true);await click('#finish-button');
+ await click('[data-player="P_DEFAULT_002"]');
  await evaluate('window.scrollTo(0,0)');await delay(3100);
  await screenshot('ipad-landscape',1194,834);
  assert.equal(await evaluate('[...document.querySelectorAll("[data-stat]")].every(b=>b.getBoundingClientRect().bottom<=innerHeight)'),true,'all stat buttons must fit landscape iPad without page scrolling');
@@ -153,6 +156,23 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  await click('#roster-button');await click('[data-edit="P_DEFAULT_001"]');await value('#player-name','Fresh edited name');await click('#save-player');await click('#roster-dialog [data-close]');
  assert.ok((await evaluate('document.querySelector(\'[data-player="P_DEFAULT_001"]\').textContent')).includes('Fresh edited name'),'manual roster edit must refresh the on-court panel');
  await click('#clock-button');await click('#clock-button');await click('#lineup-button');assert.ok((await evaluate('document.querySelector("#squad-list").textContent')).includes('Fresh edited name'));await click('#lineup-dialog [data-close]');
+ // Feedback must never throttle fast recording, including keyboard and reduced motion.
+ await click('[data-player="P_DEFAULT_001"]');
+ const rapidBefore=(await current()).gameEvents.length;
+ await evaluate(`(()=>{const b=document.querySelector('[data-stat="2PT_MADE"]');for(let i=0;i<8;i++)b.click();})()`);
+ assert.equal((await current()).gameEvents.length,rapidBefore+8);
+ assert.ok((await evaluate('document.querySelector("#action-confirmation").textContent')).includes('2-point shot made'));
+ assert.equal(await evaluate('document.querySelector("[data-stat]").disabled'),false);
+ await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+ await tap('[data-stat="3PT_MADE"]');
+ assert.equal((await current()).gameEvents.length,rapidBefore+9);
+ assert.equal(await evaluate('document.querySelector("#home-score").getAnimations().length'),0);
+ await send('Emulation.setEmulatedMedia',{features:[]});
+ await evaluate('document.querySelector(\'[data-stat="FT_MADE"]\').focus()');
+ await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13});
+ await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+ assert.equal((await current()).gameEvents.length,rapidBefore+10);
+ assert.equal(await evaluate('document.querySelector("#home-score").getAnimations().length'),0);
  assert.deepEqual(errors,[],'no browser JavaScript errors');assert.ok(!requests.some(u=>/^https?:/.test(u)),'app works without network requests');
  console.log('Browser smoke passed: setup, all 13 actions, undo, opponent records, roster identity, clock correction, periods, CSV download, refresh, box score, finish/reopen, game history, backup/restore, corrupt-storage recovery, five responsive sizes, offline operation.');
  console.log('Screenshots and exported CSV: tests/artifacts/');

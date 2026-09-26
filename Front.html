@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#f4f6fa">
   <title>CourtSide · Team Scorekeeper</title>
   <style>:root{--ink:#192c49;--muted:#788398;--line:#e7ebf2;--paper:#fff;--blue:#406be8;--green:#137753;--orange:#ad6a16;--red:#b64c58;--radius:18px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:#f4f6fa;font-synthesis:none}
@@ -29,6 +30,31 @@
 @media(max-width:600px){.roster-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.player-card{width:100%;min-width:0}.squad-row{gap:7px}.squad-row label{font-size:10px}.squad-name{font-size:12px}.lineup-actions{bottom:-22px}#box-view .panel-heading{align-items:flex-start;flex-direction:column}.form-actions{flex-wrap:wrap}}
 
 .hosted-nav{display:flex;align-items:center;flex-wrap:wrap;gap:12px 24px;padding:12px 0;border-bottom:1px solid var(--line);font-size:12px}.hosted-nav[hidden]{display:none}.hosted-nav a{color:var(--ink);text-decoration:none;min-height:32px;display:inline-flex;align-items:center}.hosted-nav a:hover{text-decoration:underline}.hosted-nav [aria-current]{color:var(--muted)}
+/* Light courtside materials; keep the recorder's established control geometry. */
+:root{--muted:#64748b;--line:#e1e7ef;--blue:#3565d8;--ease-out:cubic-bezier(.23,1,.32,1);color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{background:linear-gradient(145deg,#f5f7fb,#eef2f8);min-height:100dvh}
+.app-shell{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right));padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+button,a,[role=button]{touch-action:manipulation}button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform 120ms var(--ease-out),background-color 120ms ease}
+.panel,.scoreboard{box-shadow:0 2px 3px #192c4903,0 10px 28px #192c4905;border-color:#fff;border-radius:20px}
+.topbar{border-color:#dfe5ee}.brand-ball{box-shadow:inset 0 1px 0 #ffffff25}.score{letter-spacing:-2px}.clock-display{letter-spacing:-1px}
+.player-card.selected{background:#e9f0ff;border-color:#8ba9ef;box-shadow:inset 3px 0 0 var(--blue)}
+.selected-player{border-radius:12px;padding-left:10px;padding-right:10px;margin:6px 0;background:#f7f9fc}
+.selected-player.has-selection{background:#eef3ff;box-shadow:inset 3px 0 0 var(--blue)}
+.selected-avatar{background:#dfe9ff;color:#234eaa}.selected-name{letter-spacing:-.35px}.selection-tag{color:#355b9d;background:#fff;border-color:#d9e4fa}
+.stat-button{box-shadow:inset 0 1px 0 #ffffff85}.stat-button:disabled{box-shadow:none}.stat-button small{opacity:.85}
+.section-label,.player-info small,.event-body small{color:#65758b}.recording-hint{color:#69798f}
+.segmented{background:#edf0f5}.segmented button.active{color:#2854aa;box-shadow:0 1px 4px #192c4914}
+dialog{background:#fcfdff;border-color:#ffffffcc;box-shadow:0 24px 80px #14284430;border-radius:24px;overscroll-behavior:contain;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+dialog::backdrop{background:#1428444d;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+select{font-size:16px}.squad-row input{cursor:pointer}.squad-row:has(input:checked){background:#f0f5ff}.lineup-actions{background:#fcfdfff2}
+.action-confirmation{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100vw - 32px);width:max-content;background:#192c49f5;color:#fff;box-shadow:0 6px 24px #192c4924;border:1px solid #ffffff24;border-radius:14px;padding:11px 16px;font-size:12px;line-height:1.5;z-index:15;pointer-events:none;opacity:0;transition:opacity 120ms ease}
+.action-confirmation.visible{opacity:1}.toast{bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+html[data-input=keyboard] button{transition:none}html[data-input=keyboard] button:active{transform:none}
+@media(hover:hover) and (pointer:fine){.player-card:hover{background:#f0f4fb}.player-card.selected:hover{background:#e4edff}}
+@media(hover:none){.dark:hover{background:var(--ink)}.subtle:hover{background:#fff}.made:hover{background:#e9f6ef}.missed:hover{background:#fff5e6}.neutral:hover{background:#edf3ff}.danger:hover{background:#fdf0f1}.player-card:hover{background:#fff}.player-card.selected:hover{background:#e9f0ff}}
+@media(max-width:600px){.app-shell{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}.selected-player{gap:8px}.selected-player>div{min-width:0}.selection-tag{padding:5px;font-size:7px}.action-confirmation{font-size:11px}dialog{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}button:active:not(:disabled){transform:none}}
 </style>
 </head>
 <body>
@@ -64,6 +90,7 @@
       <footer class="footer"><span><span class="offline-dot">●</span> Works offline · Stored on this device</span><div><button id="recovery-button" class="text-button" hidden>Download original recovery data</button><button id="backup-button" class="text-button">Download backup</button><button id="restore-button" class="text-button">Restore backup</button></div></footer>
     </main>
   </div>
+  <div id="action-confirmation" class="action-confirmation" role="status" aria-live="polite" aria-atomic="true"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="setup-dialog"><form id="setup-form"><div class="dialog-heading"><div><div class="eyebrow">LET’S PLAY</div><h2>Set up your game</h2></div><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Your roster is ready. Just add the game details.</p><label>Opponent<input id="setup-opponent" name="opponent" required maxlength="100" placeholder="e.g. Northside Hawks" autocomplete="off"></label><label>Game date<input id="setup-date" type="date" required></label><label>Game category<select id="setup-category" required><option value="friendly">Friendly</option><option value="official">Official</option></select></label><div class="form-row"><label>Quarter length (min)<input id="setup-minutes" type="number" min="1" max="99" step="1" value="10" required></label><label>Overtime length (min)<input id="setup-ot" type="number" min="1" max="99" step="1" value="5" required></label></div><p class="form-note">Four regular quarters, then overtime as needed. Previous games stay in Game history.</p><button class="button dark full" type="submit">Create game →</button></form></dialog>
   <dialog id="clock-dialog"><form id="clock-form"><div class="dialog-heading"><h2>Adjust game clock</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Match the official scoreboard. Earlier events keep their recorded times.</p><label>Time remaining (MM:SS)<input id="clock-input" type="text" inputmode="decimal" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="06:31" required></label><button class="button dark full" type="submit">Set time</button></form></dialog>
@@ -404,6 +431,21 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   const labels={'2PT_MADE':'2-point shot made','2PT_MISSED':'2-point shot missed','3PT_MADE':'3-point shot made','3PT_MISSED':'3-point shot missed',FT_MADE:'Free throw made',FT_MISSED:'Free throw missed',OFF_REBOUND:'Offensive rebound',DEF_REBOUND:'Defensive rebound',ASSIST:'Assist',STEAL:'Steal',BLOCK:'Block',TURNOVER:'Turnover',FOUL:'Personal foul'};
   let state={version:2,roster:DEFAULT_ROSTER.map((p,i)=>({...p,id:`P_DEFAULT_${String(i+1).padStart(3,'0')}`})),games:[],currentGameId:null};
   let selectedId=null, side='HOME', toastTimer, saveBlocked=false, rawSaved=null, confirmAction=null;
+  let feedbackTimer, inputMethod='keyboard';
+  document.addEventListener('pointerdown',()=>{inputMethod='pointer';document.documentElement.dataset.input='pointer';},true);
+  document.addEventListener('keydown',()=>{inputMethod='keyboard';document.documentElement.dataset.input='keyboard';},true);
+  function confirmPlay(event){
+    const feedback=$('action-confirmation');
+    clearTimeout(feedbackTimer);
+    feedback.textContent=`✓ #${event.event_id} · ${event.team_side==='HOME'?'#'+event.jersey_number+' '+event.player_name:event.opponent} · ${labels[event.event_type]}`;
+    feedback.classList.add('visible');
+    feedbackTimer=setTimeout(()=>feedback.classList.remove('visible'),1600);
+    if(event.points_value&&inputMethod==='pointer'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const score=$(event.team_side==='HOME'?'home-score':'away-score');
+      score.getAnimations().forEach(animation=>animation.cancel());
+      score.animate([{transform:'scale(1.045)'},{transform:'scale(1)'}],{duration:160,easing:'cubic-bezier(0.23, 1, 0.32, 1)'});
+    }
+  }
   const current=()=>state.games.find(g=>g.id===state.currentGameId)||null;
   function warn(text){$('storage-warning').textContent=text;$('storage-warning').hidden=false;$('save-status').textContent='● Backup recommended';}
   function toast(message,error=false){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,error?6500:3000);}
@@ -456,6 +498,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
     $('participation-note').textContent=!g?.participation?'Minutes unavailable for games recorded before lineup tracking.':g.coverage==='partial'?'Partial minutes: tracking began when a lineup was chosen for this existing game.':'Minutes count running game-clock time only. Clock corrections do not change accumulated minutes.';
     const player=roster.find(p=>p.id===selectedId);
     const name=side==='AWAY'?(g?.opponent||'Opponent'):player?.name||'Who made the play?';
+    $('selected-player').classList.toggle('has-selection',!!player||side==='AWAY');
     $('selected-player').innerHTML=`<span class="selected-avatar">${side==='AWAY'?'A':player?player.number:'—'}</span><div><div class="selected-name">${html(name)}</div><div class="selected-description">${side==='AWAY'?'Team-level recording':player?'Recording for our team':'Select a player from the roster'}</div></div><span class="selection-tag">${side==='AWAY'?'OPPONENT':'OUR TEAM'}</span>`;
     $('home-side').classList.toggle('active',side==='HOME');$('away-side').classList.toggle('active',side==='AWAY');$('home-side').setAttribute('aria-pressed',side==='HOME');$('away-side').setAttribute('aria-pressed',side==='AWAY');
     document.querySelectorAll('[data-stat]').forEach(b=>b.disabled=!g||!g.started||g.finished||(side==='HOME'&&!player));
@@ -483,7 +526,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   $('home-side').addEventListener('click',()=>{side='HOME';render();});$('away-side').addEventListener('click',()=>{side='AWAY';render();});
   document.querySelectorAll('[data-stat]').forEach(b=>b.addEventListener('click',()=>run(()=>{
     const g=current();const event=E.recordEvent(g,b.dataset.stat,g.roster.find(p=>p.id===selectedId),side);
-    toast(`${event.team_side==='HOME'?'#'+event.jersey_number+' '+event.player_name:g.opponent} · ${labels[event.event_type]}`);
+    confirmPlay(event);
   })));
   $('clock-button').addEventListener('click',()=>run(()=>{const g=current();if(!g.lineup){chooseLineup();return;}g.running?E.pause(g):E.start(g);}));
   $('adjust-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;$('clock-input').value=E.clock(g);open('clock-dialog');});

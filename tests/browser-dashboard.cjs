@@ -18,7 +18,8 @@ let child,ws,base;const pending=new Map();let seq=0;const errors=[];const delay=
 async function send(method,params={}){return new Promise((resolve,reject)=>{const id=++seq;const timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP timeout '+method));},15000);pending.set(id,{resolve:v=>{clearTimeout(timer);resolve(v);},reject:e=>{clearTimeout(timer);reject(e);}});ws.send(JSON.stringify({id,method,params}));});}
 async function evaluate(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;}
 async function until(expression){for(let i=0;i<100;i++){if(await evaluate(expression))return;await delay(50);}throw Error('Timed out waiting for '+expression);}
-async function click(selector){await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});if(!n||n.disabled)throw Error('Disabled/missing '+${JSON.stringify(selector)});n.click();})()`);}
+async function click(selector){await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});if(!n||n.disabled||!n.getClientRects().length)throw Error('Hidden/disabled/missing '+${JSON.stringify(selector)});n.click();})()`);}
+async function view(name){if(await evaluate("matchMedia('(max-width:700px)').matches"))await click('.main-nav a[href="#'+name+'"]');}
 async function change(selector,value,event='change'){await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});n.value=${JSON.stringify(value)};n.dispatchEvent(new Event(${JSON.stringify(event)},{bubbles:true}));})()`);}
 async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buffer.from((await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));}
 (async()=>{
@@ -35,24 +36,26 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
  assert.equal(await evaluate("document.querySelector('#period-select').value"),'fall:2026');
  assert.equal(await evaluate("document.querySelector('#record').textContent"),'5–2–0');
  assert.equal(await evaluate("document.querySelectorAll('.leader-card').length"),6);
+ assert.equal(await evaluate("document.querySelector('#latest-game')?.dataset.gameId"),'winter','overview leads with latest game in selected period');
+ await click('#latest-game .latest-report');assert.equal(await evaluate("document.querySelector('#box-dialog').open"),true);await click('#box-close');
  await shot('dashboard-desktop');
  const density=await evaluate(`({leadersBottom:document.querySelector('#leader-grid').getBoundingClientRect().bottom,playersTop:document.querySelector('#players').getBoundingClientRect().top})`);
  console.log('Desktop content positions:',density);
  assert.ok(density.leadersBottom<=650,'team summary and leaders should fit comfortably in the first desktop screen');
  assert.ok(density.playersTop<=750,'player statistics should begin within the first desktop screen');
  await change('#period-select','spring:2026');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'2');
- await change('#category-select','official');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'1');
+ await change('#category-select','official');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'1');assert.equal(await evaluate("document.querySelector('#latest-game').dataset.gameId"),'spring');
  await change('#period-select','year:2026');await change('#category-select','all');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'8');
  await change('#period-select','career');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'10');
  await change('#player-search','牛','input');assert.equal(await evaluate("document.querySelectorAll('#player-table tbody tr').length"),1);
- await click('#player-table tbody button');assert.equal(await evaluate("document.querySelector('#player-dialog').open"),true);assert.ok((await evaluate("document.querySelector('#player-summary').textContent")).includes('20.0'));
+ await view('players');await click('#player-table tbody button');assert.equal(await evaluate("document.querySelector('#player-dialog').open"),true);assert.ok((await evaluate("document.querySelector('#player-summary').textContent")).includes('20.0'));
  await change('#profile-period','spring:2026');assert.ok((await evaluate("document.querySelector('#player-note').textContent")).includes('2 appearances'));
  await change('#profile-period','career');await shot('dashboard-player');await click('#player-close');
  await change('#player-search','23','input');assert.ok((await evaluate("document.querySelector('#player-table').textContent")).includes('Marcus Lee'));
  await change('#player-search','nothing-matches','input');assert.ok((await evaluate("document.querySelector('#player-table').textContent")).includes('No players'));
  await change('#player-search','','input');await change('#period-select','fall:2026');
  await click('#leader-average');assert.equal(await evaluate("document.querySelector('#leader-average').getAttribute('aria-pressed')"),'true');
- await click('#game-list button');assert.equal(await evaluate("document.querySelector('#box-dialog').open"),true);assert.ok((await evaluate("document.querySelector('#box-table').textContent")).includes('OREB'));
+ await view('games');await click('#game-list button');assert.equal(await evaluate("document.querySelector('#box-dialog').open"),true);assert.ok((await evaluate("document.querySelector('#box-table').textContent")).includes('OREB'));
  const comparison=await evaluate("[...document.querySelectorAll('#game-comparison tbody tr')].map(r=>[...r.cells].map(c=>c.textContent))");
  assert.deepEqual(comparison.find(r=>r[0]==='Steals'),['Steals','7','5']);
  assert.deepEqual(comparison.find(r=>r[0]==='Rebounds'),['Rebounds','34','30']);
@@ -63,11 +66,33 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
  assert.equal(await evaluate("document.querySelectorAll('#box-table tbody tr').length"),6);
  await shot('dashboard-game');await click('#box-close');
  for(const width of [1920,1194,768,600,541,320,390]){await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:false});await evaluate('window.scrollTo(0,0)');await delay(100);assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'page overflow at '+width);await shot('dashboard-'+width);}
- assert.ok(await evaluate("document.querySelector('.summary-grid').getBoundingClientRect().bottom<=window.innerHeight"),'all team summary metrics should fit in the first phone screen');
+ assert.ok(await evaluate("document.querySelector('#latest-game').getBoundingClientRect().bottom<window.innerHeight"),'latest game fits on first phone screen');
+ assert.ok(await evaluate("document.querySelector('.main-nav').getBoundingClientRect().top>window.innerHeight-120 && document.querySelector('.main-nav').getBoundingClientRect().bottom<=window.innerHeight"),'phone navigation stays at the viewport bottom');
+ assert.equal(await evaluate("document.querySelector('#players').getClientRects().length"),0,'phone Overview hides player table');
+ await click('.main-nav a[href="#players"]');
+ assert.ok(await evaluate("document.querySelector('#players').getClientRects().length>0"));
+ await evaluate('history.back()');await until("location.hash==='' && document.body.dataset.view==='overview'");
+ await evaluate('history.forward()');await until("location.hash==='#players' && document.body.dataset.view==='players'");
+ assert.equal(await evaluate("document.querySelector('#games').getClientRects().length"),0);
+ assert.deepEqual(await evaluate("[...document.querySelectorAll('#player-table th')].filter(n=>n.getClientRects().length).map(n=>n.textContent.trim())"),['Player','GP','PPG ↓','RPG','APG']);
+ assert.ok(await evaluate("document.querySelector('#player-table').scrollWidth<=document.querySelector('#player-table').clientWidth"),'phone player stats need no sideways scrolling');
+ await change('#player-search','Marcus','input');await click('.main-nav a[href="#games"]');await click('.main-nav a[href="#players"]');
+ assert.equal(await evaluate("document.querySelector('#player-search').value"),'Marcus','tab navigation retains search');
+ await change('#player-search','','input');await shot('dashboard-phone-players');
+ await click('.main-nav a[href="#games"]');await shot('dashboard-phone-games');
+ await click('.main-nav a[href="#overview"]');
+
  await evaluate("document.querySelector('#leader-grid').scrollIntoView({behavior:'instant',block:'start'})");await shot('dashboard-leaders-mobile');
- await click('.more-metrics summary');assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'expanded team metrics overflow');
- await click('#game-list button');assert.equal(await evaluate('document.querySelector("#box-dialog").getBoundingClientRect().width<=window.innerWidth'),true);await shot('dashboard-game-mobile');await click('#box-close');
- await click('#player-table tbody button');assert.equal(await evaluate('document.querySelector("#player-dialog").scrollWidth<=document.querySelector("#player-dialog").clientWidth'),true,'player dialog should not scroll sideways');await shot('dashboard-player-mobile');await click('#player-close');
+ await click('.analysis-disclosure>summary');await click('.more-metrics summary');assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'expanded team metrics overflow');
+ await view('games');await click('#game-list button');assert.equal(await evaluate('document.querySelector("#box-dialog").getBoundingClientRect().width<=window.innerWidth'),true);await shot('dashboard-game-mobile');await click('#box-close');
+ await view('players');await click('#player-table tbody button');assert.equal(await evaluate('document.querySelector("#player-dialog").scrollWidth<=document.querySelector("#player-dialog").clientWidth'),true,'player dialog should not scroll sideways');await shot('dashboard-player-mobile');await click('#player-close');
+ await view('overview');
+ const pointerOpen="(()=>{const n=document.querySelector('#latest-game .latest-report');n.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch'}));n.click();return document.querySelector('#box-dialog').getAnimations().length;})()";
+ assert.ok(await evaluate(pointerOpen)>0,'pointer-opened report gets a responsive entrance');await click('#box-close');
+ await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+ assert.equal(await evaluate(pointerOpen),0,'reduced motion suppresses sheet movement');await click('#box-close');
+ await send('Emulation.setEmulatedMedia',{features:[]});
+ assert.equal(await evaluate("(()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));document.querySelector('#latest-game .latest-report').click();return document.querySelector('#box-dialog').getAnimations().length;})()"),0,'keyboard actions open immediately');await click('#box-close');
  const savedName=snapshot.roster[0].player_name;snapshot.roster[0].player_name='Alexandria Montgomery';
  await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='7'");await click('#leader-average');
  for(const width of [1194,320,390]){
@@ -76,12 +101,12 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
   assert.ok(readable,'long and tied leader names have a readable full-width line at '+width);
  }
  snapshot.roster[0].player_name=savedName;
- mode='groups';await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='7'");
+ mode='groups';await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='7'");await view('players');
  assert.equal(await evaluate("document.querySelectorAll('#player-table tbody tr').length"),7);
  assert.ok((await evaluate("document.querySelector('#player-table').textContent")).includes('Zero-stat appearance'));
  assert.equal(await evaluate("document.querySelector('#player-table').textContent.includes('Unused bench')"),false);
  await click('#players-other');assert.equal(await evaluate("document.querySelectorAll('#player-table tbody tr').length"),3);
- await change('#player-search','Former','input');await click('#player-table tbody button');
+ await change('#player-search','Former','input');await view('players');await click('#player-table tbody button');
  assert.ok((await evaluate("document.querySelector('#player-note').textContent")).includes('0 appearances'));
  await change('#profile-period','spring:2026');assert.ok((await evaluate("document.querySelector('#player-note').textContent")).includes('1 appearances'));await click('#player-close');
  await change('#player-search','','input');await click('#players-appeared');assert.ok((await evaluate("document.querySelector('#player-table').textContent")).includes('Former teammate'));
@@ -89,10 +114,10 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
  await click('#players-other');assert.ok((await evaluate("document.querySelector('#player-table').textContent")).includes('Zero-stat appearance'));
  assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'player filters fit on phone');
  await change('#category-select','all');await click('#players-appeared');await evaluate("document.querySelector('#players').scrollIntoView({behavior:'instant',block:'start'})");await shot('dashboard-player-tabs-mobile');
- mode='empty';await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='0'");assert.ok((await evaluate("document.querySelector('#game-list').textContent")).includes('No games'));await shot('dashboard-empty');
+ mode='empty';await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='0'");assert.ok((await evaluate("document.querySelector('#game-list').textContent")).includes('No games'));await view('overview');assert.equal(await evaluate("document.querySelector('#latest-game').dataset.gameId"),undefined);await shot('dashboard-empty');
  mode='error';await send('Page.reload');await until("document.querySelector('#retry-load')&&!document.querySelector('#retry-load').hidden");mode='normal';await click('#retry-load');await until("document.querySelector('#game-count').textContent==='7'");
  mode='legacy';await send('Page.reload');await until("document.querySelector('#game-count').textContent==='7'");assert.equal(await evaluate("document.querySelector('#pace').textContent"),'—');assert.ok((await evaluate("document.querySelector('#team-comparison').textContent")).includes('unavailable'));
- await click('#game-list button');
+ await view('games');await click('#game-list button');
  const legacyRows=await evaluate("[...document.querySelectorAll('#game-comparison tbody tr')].map(r=>[...r.cells].map(c=>c.textContent))");
  assert.deepEqual(legacyRows.find(r=>r[0]==='Points'),['Points','80','70']);
  assert.deepEqual(legacyRows.find(r=>r[0]==='Steals'),['Steals','7','—']);

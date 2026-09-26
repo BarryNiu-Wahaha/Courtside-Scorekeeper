@@ -8,6 +8,46 @@
   const descending=(a,b)=>b.game_date.localeCompare(a.game_date)||b.game_id.localeCompare(a.game_id);
   const names={points:'Points',rebounds:'Rebounds',offensive:'Off. rebounds',defensive:'Def. rebounds',assists:'Assists',steals:'Steals',blocks:'Blocks',turnovers:'Turnovers',fouls:'Fouls'};
   let snapshot=null,games=[],summary=null,leaderMode='total',sortKey='points',sortDirection=-1,playerId=null,playerGroup='appeared';
+  const phone=matchMedia('(max-width: 700px)'), reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  let pointerAction=false;
+  document.addEventListener('pointerdown',()=>{pointerAction=true;},{capture:true});
+  document.addEventListener('keydown',()=>{pointerAction=false;},{capture:true});
+  function animateIn(node,kind='panel'){
+    if(!pointerAction||reducedMotion.matches||!node.animate)return;
+    if(!node.getClientRects().length && node.isConnected)return;
+    node.getAnimations().forEach(a=>a.cancel());
+    const transform=kind==='sheet'?'translateY(24px) scale(.98)':'translateY(6px)';
+    node.animate([{opacity:0,transform},{opacity:1,transform:'none'}],{duration:kind==='sheet'?260:180,easing:'cubic-bezier(.23,1,.32,1)'});
+  }
+  function selectView(view,focus=false){
+    if(!['overview','players','games'].includes(view))view='overview';
+    document.body.dataset.view=view;
+    for(const link of document.querySelectorAll('.main-nav a')){
+      const selected=link.hash==='#'+view;
+      link.classList.toggle('nav-active',selected);
+      if(selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+    }
+    if(phone.matches&&focus){
+      window.scrollTo({top:0,behavior:'instant'});
+      const section=document.querySelector('[data-view="'+view+'"]:not(body)');
+      if(section){animateIn(section);section.tabIndex=-1;section.focus({preventScroll:true});}
+    }
+  }
+  document.querySelector('.main-nav').addEventListener('click',event=>{
+    const link=event.target.closest('a');
+    if(!link||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+    if(phone.matches){event.preventDefault();if(location.hash!==link.hash)history.pushState(null,'',link.hash);selectView(link.hash.slice(1),true);}
+    else selectView(link.hash.slice(1));
+  });
+  window.addEventListener('hashchange',()=>{if(!location.hash||['overview','players','games'].includes(location.hash.slice(1)))selectView(location.hash.slice(1),true);});
+  phone.addEventListener('change',()=>selectView(location.hash.slice(1)));
+  selectView(location.hash.slice(1));
+  $('summary-toggle').onclick=()=>{
+    const expanded=$('summary-toggle').getAttribute('aria-expanded')!=='true';
+    $('summary-toggle').setAttribute('aria-expanded',String(expanded));
+    $('summary-toggle').textContent=expanded?'Fewer team metrics -':'More team metrics +';
+    document.body.classList.toggle('show-advanced',expanded);
+  };
   function empty(title,copy){const n=el('div',undefined,'empty-state');n.append(el('strong',title),el('p',copy));return n;}
   function button(text,action,cls='player-link'){const n=el('button',text,cls);n.type='button';n.onclick=action;return n;}
   function playerButton(p){const n=button(p.player_name,()=>openPlayer(p.player_id));n.prepend(el('span',p.jersey_number??'—','jersey'));return n;}
@@ -18,7 +58,7 @@
   function periodOptions(){const current=A.currentSeason(),seasons=new Set([current]),years=new Set([String(new Date().getFullYear())]);
     for(const g of snapshot.games){seasons.add(A.season(g.game_date));years.add(g.game_date.slice(0,4));}
     const select=$('period-select');select.replaceChildren();
-    const group=(label,values)=>{const n=el('optgroup');n.label=label;for(const v of values){const o=el('option',A.periodLabel(v)+(v===current?' · Current':''));o.value=v;n.append(o);}select.append(n);};
+    const group=(label,values)=>{const n=el('optgroup');n.label=label;for(const v of values){const o=el('option',A.periodLabel(v));o.value=v;n.append(o);}select.append(n);};
     group('Seasons',[...seasons].sort((a,b)=>Number(b.split(':')[1])-Number(a.split(':')[1])||(a.startsWith('fall')?-1:1)));
     group('Calendar years',[...years].sort().reverse().map(y=>'year:'+y));group('All time',['career']);select.value=current;
   }
@@ -32,8 +72,27 @@
     $('rating-coverage').textContent=`${summary.advanced.eligible} of ${games.length} games with complete stats`;
     const unclassified=games.filter(g=>!g.category).length;$('filter-note').textContent=unclassified?`${unclassified} unclassified historical game${unclassified===1?'':'s'} included`:cat==='all'?'Official and friendly games included':cat==='official'?'Official games only':'Friendly games only';
     $('leader-total').textContent=period==='career'?'Career totals':period.startsWith('year:')?'Year totals':'Season totals';
-    renderLeaders();renderChart();renderComparison();renderPlayers();renderGames();
+    renderLatest();renderLeaders();renderChart();renderComparison();renderPlayers();renderGames();
     if($('player-dialog').open)renderPlayer(playerId);
+  }
+  function renderLatest(){
+    const holder=$('latest-game'),g=games[0];holder.replaceChildren();
+    if(!g){delete holder.dataset.gameId;holder.append(empty('Your next story starts here','No games in this selection. Choose another period or game category.'));return;}
+    holder.dataset.gameId=g.game_id;
+    const result=g.home_points>g.away_points?'WIN':g.home_points<g.away_points?'LOSS':'TIE';
+    const top=el('div',undefined,'latest-top');top.append(el('p','LATEST GAME','eyebrow'),el('span','FINAL · '+result,'latest-result'));
+    const matchup=el('div',undefined,'latest-matchup'),teams=el('div');
+    teams.append(el('span','Our team','latest-team'),el('h2','vs '+g.opponent));
+    matchup.append(teams,el('strong',g.home_points+' – '+g.away_points,'latest-score'));
+    const info=el('p',g.game_date+' · '+category(g),'latest-meta');
+    const leaders=A.leaders(A.summarize(snapshot,[g]).players,'points','total');
+    const footer=el('div',undefined,'latest-footer'),performers=el('div',undefined,'latest-performers');
+    if(leaders.players.length){
+      performers.append(el('small',leaders.players.length===1?'POINTS LEADER':'POINTS LEADERS'));
+      for(const p of leaders.players)performers.append(button(p.player_name+' · '+fmt(leaders.value,0)+' PTS',()=>openPlayer(p.player_id)));
+    }
+    footer.append(performers,button('Game report ↗',()=>openGame(g),'latest-report'));
+    holder.append(top,matchup,info,footer);
   }
   function renderLeaders(){
     $('leader-total').setAttribute('aria-pressed',leaderMode==='total');$('leader-average').setAttribute('aria-pressed',leaderMode==='average');
@@ -62,7 +121,7 @@
     }
     const indices=[...new Set([0,Math.floor((data.length-1)/3),Math.floor(2*(data.length-1)/3),data.length-1])];
     for(const i of indices)svg.append(svgNode('text',{x:x(i),y:H-10,'text-anchor':'middle'},data[i].game_date.slice(5).replace('-','/')));
-    holder.append(svg,el('p',`${data.length} games · Chronological order · Scores shown in game reports`,'chart-footnote'));
+    animateIn(svg);holder.append(svg,el('p',`${data.length} games · Chronological order · Scores shown in game reports`,'chart-footnote'));
   }
   function renderComparison(){
     const container=$('team-comparison');container.replaceChildren();const head=el('div',undefined,'comparison-head');head.append(el('span','RECORDED STAT'),el('span','OUR TEAM'),el('span','OPPONENT'));container.append(head);
@@ -98,7 +157,7 @@
     }));
     if(!games.length)$('game-list').append(empty('No games in this period','Try a different period or include both game categories.'));
   }
-  function openPlayer(id){playerId=id;renderPlayer(id);if(!$('player-dialog').open)$('player-dialog').showModal();}
+  function openPlayer(id){playerId=id;renderPlayer(id);if(!$('player-dialog').open){$('player-dialog').showModal();animateIn($('player-dialog'),'sheet');}}
   function renderPlayer(id){
     const known=(snapshot.roster||[]).find(p=>p.player_id===id)||snapshot.games.flatMap(g=>g.players||[]).find(p=>p.player_id===id);
     const p=summary.players.find(p=>p.player_id===id)||(known?{...known,appearances:0,played_ms:null,partial:false,stats:A.empty(),averages:{},shooting:A.shooting(A.empty()),games:[]}:null);if(!p){$('player-dialog').close();return;}
@@ -128,7 +187,7 @@
     else if(m.pace===null)$('game-comparison').append(el('p','Pace is unavailable because game duration was not recorded.','section-note'));
     if(!a)$('game-comparison').append(el('p','Opponent detail was not recorded for this game. Its final score is still available.','section-note'));
     $('box-table').replaceChildren(table(['Player','MIN','PTS','FG','FG%','3PT','FT','OREB','DREB','REB','AST','STL','BLK','TO','PF'],(g.players||[]).map(p=>{const s={...A.empty(),...p.stats};return [p.player_name,p.played_count===0?'DNP':p.played_ms==null?'—':fmt(p.played_ms/60000)+(g.coverage==='complete'?'':'*'),...teamCells(s)];})));
-    if(!$('box-dialog').open)$('box-dialog').showModal();
+    if(!$('box-dialog').open){$('box-dialog').showModal();animateIn($('box-dialog'),'sheet');}
   }
   async function load(){
     $('retry-load').hidden=true;$('load-status').textContent='';$('published').textContent='Loading published results…';
@@ -142,6 +201,8 @@
   for(const group of ['appeared','other'])$('players-'+group).onclick=()=>{playerGroup=group;if(summary)renderPlayers();};
   $('profile-period').onchange=()=>{$('period-select').value=$('profile-period').value;render();};$('profile-category').onchange=()=>{$('category-select').value=$('profile-category').value;render();};
   $('leader-total').onclick=()=>{leaderMode='total';if(summary)renderLeaders();};$('leader-average').onclick=()=>{leaderMode='average';if(summary)renderLeaders();};
+  reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches)document.getAnimations().forEach(a=>a.cancel());});
+  for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('close',()=>dialog.getAnimations().forEach(a=>a.cancel()));
   $('player-close').onclick=()=>$('player-dialog').close();$('box-close').onclick=()=>$('box-dialog').close();$('retry-load').onclick=load;
   load();
 })();

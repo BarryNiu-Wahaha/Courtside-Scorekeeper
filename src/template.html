@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#f4f6fa">
   <title>CourtSide · Team Scorekeeper</title>
   <style>/* INLINE_STYLES */</style>
@@ -40,6 +41,7 @@
       <footer class="footer"><span><span class="offline-dot">●</span> Works offline · Stored on this device</span><div><button id="recovery-button" class="text-button" hidden>Download original recovery data</button><button id="backup-button" class="text-button">Download backup</button><button id="restore-button" class="text-button">Restore backup</button></div></footer>
     </main>
   </div>
+  <div id="action-confirmation" class="action-confirmation" role="status" aria-live="polite" aria-atomic="true"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="setup-dialog"><form id="setup-form"><div class="dialog-heading"><div><div class="eyebrow">LET’S PLAY</div><h2>Set up your game</h2></div><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Your roster is ready. Just add the game details.</p><label>Opponent<input id="setup-opponent" name="opponent" required maxlength="100" placeholder="e.g. Northside Hawks" autocomplete="off"></label><label>Game date<input id="setup-date" type="date" required></label><label>Game category<select id="setup-category" required><option value="friendly">Friendly</option><option value="official">Official</option></select></label><div class="form-row"><label>Quarter length (min)<input id="setup-minutes" type="number" min="1" max="99" step="1" value="10" required></label><label>Overtime length (min)<input id="setup-ot" type="number" min="1" max="99" step="1" value="5" required></label></div><p class="form-note">Four regular quarters, then overtime as needed. Previous games stay in Game history.</p><button class="button dark full" type="submit">Create game →</button></form></dialog>
   <dialog id="clock-dialog"><form id="clock-form"><div class="dialog-heading"><h2>Adjust game clock</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p class="dialog-description">Match the official scoreboard. Earlier events keep their recorded times.</p><label>Time remaining (MM:SS)<input id="clock-input" type="text" inputmode="decimal" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="06:31" required></label><button class="button dark full" type="submit">Set time</button></form></dialog>
