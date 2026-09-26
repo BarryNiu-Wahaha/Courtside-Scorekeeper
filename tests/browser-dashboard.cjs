@@ -30,12 +30,16 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
  ws.addEventListener('message',event=>{const msg=JSON.parse(event.data);if(msg.id){const p=pending.get(msg.id);pending.delete(msg.id);if(p)msg.error?p.reject(Error(msg.error.message)):p.resolve(msg.result);}else if(msg.method==='Runtime.exceptionThrown')errors.push(msg.params.exceptionDetails);});
  await send('Runtime.enable');await send('Page.enable');
  await send('Page.addScriptToEvaluateOnNewDocument',{source:"const RealDate=Date;window.Date=class extends RealDate{constructor(...args){super(...(args.length?args:['2026-09-13T12:00:00']));}static now(){return new RealDate('2026-09-13T12:00:00').getTime();}};"});
- await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+ await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
  await send('Page.navigate',{url:base+'/index.html'});await until("document.querySelector('#game-count')?.textContent==='7'");
  assert.equal(await evaluate("document.querySelector('#period-select').value"),'fall:2026');
  assert.equal(await evaluate("document.querySelector('#record').textContent"),'5–2–0');
  assert.equal(await evaluate("document.querySelectorAll('.leader-card').length"),6);
  await shot('dashboard-desktop');
+ const density=await evaluate(`({leadersBottom:document.querySelector('#leader-grid').getBoundingClientRect().bottom,playersTop:document.querySelector('#players').getBoundingClientRect().top})`);
+ console.log('Desktop content positions:',density);
+ assert.ok(density.leadersBottom<=650,'team summary and leaders should fit comfortably in the first desktop screen');
+ assert.ok(density.playersTop<=750,'player statistics should begin within the first desktop screen');
  await change('#period-select','spring:2026');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'2');
  await change('#category-select','official');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'1');
  await change('#period-select','year:2026');await change('#category-select','all');assert.equal(await evaluate("document.querySelector('#game-count').textContent"),'8');
@@ -58,10 +62,20 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
  assert.ok((await evaluate("document.querySelector('#game-metrics').textContent")).includes('69.6'));
  assert.equal(await evaluate("document.querySelectorAll('#box-table tbody tr').length"),6);
  await shot('dashboard-game');await click('#box-close');
- for(const width of [1194,768,390]){await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:false});await evaluate('window.scrollTo(0,0)');await delay(100);assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'page overflow at '+width);await shot('dashboard-'+width);}
+ for(const width of [1920,1194,768,600,541,320,390]){await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:false});await evaluate('window.scrollTo(0,0)');await delay(100);assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'page overflow at '+width);await shot('dashboard-'+width);}
+ assert.ok(await evaluate("document.querySelector('.summary-grid').getBoundingClientRect().bottom<=window.innerHeight"),'all team summary metrics should fit in the first phone screen');
+ await evaluate("document.querySelector('#leader-grid').scrollIntoView({behavior:'instant',block:'start'})");await shot('dashboard-leaders-mobile');
  await click('.more-metrics summary');assert.equal(await evaluate('document.documentElement.scrollWidth<=window.innerWidth'),true,'expanded team metrics overflow');
  await click('#game-list button');assert.equal(await evaluate('document.querySelector("#box-dialog").getBoundingClientRect().width<=window.innerWidth'),true);await shot('dashboard-game-mobile');await click('#box-close');
  await click('#player-table tbody button');assert.equal(await evaluate('document.querySelector("#player-dialog").scrollWidth<=document.querySelector("#player-dialog").clientWidth'),true,'player dialog should not scroll sideways');await shot('dashboard-player-mobile');await click('#player-close');
+ const savedName=snapshot.roster[0].player_name;snapshot.roster[0].player_name='Alexandria Montgomery';
+ await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='7'");await click('#leader-average');
+ for(const width of [1194,320,390]){
+  await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:false});
+  const readable=await evaluate(`Array.from(document.querySelectorAll('.leader-card .player-link')).every(n=>n.clientWidth>=n.closest('.leader-card').clientWidth-28 && n.scrollWidth<=n.clientWidth)`);
+  assert.ok(readable,'long and tied leader names have a readable full-width line at '+width);
+ }
+ snapshot.roster[0].player_name=savedName;
  mode='groups';await send('Page.reload');await until("document.querySelector('#game-count')?.textContent==='7'");
  assert.equal(await evaluate("document.querySelectorAll('#player-table tbody tr').length"),7);
  assert.ok((await evaluate("document.querySelector('#player-table').textContent")).includes('Zero-stat appearance'));

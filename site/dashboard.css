@@ -15,3 +15,105 @@ dialog{width:min(1060px,calc(100% - 32px));max-height:90dvh;border:1px solid #d6
 #player-games th:first-child,#player-games td:first-child{min-width:210px;max-width:320px}
 
 .player-groups{display:flex;flex-wrap:wrap;width:fit-content;max-width:100%;margin:12px 0}.player-groups button{white-space:normal}#game-comparison table{min-width:0;table-layout:fixed;width:100%}#game-comparison th,#game-comparison td{white-space:normal;overflow-wrap:anywhere}#game-comparison th:first-child{width:40%}
+
+/* Compact statistics layout: retain CourtSide colors and readable data at every size. */
+:root{--radius:8px}
+h2{font-size:20px;letter-spacing:-.4px}
+h3{font-size:16px;margin:16px 0 8px}
+.header-inner{max-width:1440px;padding:0 20px;min-height:60px}
+main{max-width:1440px;padding:16px 20px}
+.hero{min-height:0;border-radius:8px;padding:14px 18px;gap:16px}
+.hero h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:4px 0 0}
+.hero-copy{font-size:13px}
+.filter-bar{margin-top:14px;gap:16px}
+.filter-title h2{font-size:22px;margin-top:2px}
+.publication{margin:8px 0 10px}
+.summary-grid{gap:8px}
+.summary-card{padding:12px 14px}
+.summary-card>strong{font-size:28px;margin:6px 0 3px;letter-spacing:-.8px}
+.summary-card>small{margin-top:8px}
+.summary-card>small,.summary-card>span:not(.metric-label),.leader-card small,.profile-metric small,.profile-metric span{font-size:11px}
+.metric-label,.summary-card>.metric-label{font-size:10px}
+.record-footer,.small-comparison{margin-top:8px;padding-top:6px;font-size:11px}
+.section-heading{margin-bottom:10px;gap:12px}
+.section-heading h2,.panel h2{font-size:19px}
+.leaders-section{margin-top:18px}
+.leader-grid{gap:8px}
+.leader-card{padding:10px 12px}
+.leader-value{font-size:25px;margin:6px 0 2px}
+.section-note{line-height:1.5;margin-top:6px}
+.analysis-grid{gap:12px;margin-top:16px;align-items:start}
+.panel{padding:14px;margin-bottom:14px}
+.scoring-chart{min-height:0}
+.scoring-chart svg{max-height:190px}
+.comparison-head{padding-bottom:6px}
+.comparison-row{padding:6px 0}
+.table-wrap{margin-top:8px;border-radius:6px}
+th{font-size:10px;padding:7px 10px}
+td{padding:5px 10px}
+tbody tr:nth-child(even) td{background:#f8fafc}
+tbody tr:hover td{background:#edf3ff}
+.jersey{margin-right:6px}
+.game-list{gap:8px}
+.game-card{padding:9px 12px;gap:10px;border-radius:6px}
+.game-card h3{margin:3px 0;font-size:12px}
+.game-meta{font-size:11px}
+.category-tag{font-size:10px}
+.empty-state{padding:20px 14px}
+.metric-guide{padding:12px 0}
+footer{padding:16px 0;gap:12px}
+dialog{padding:16px;border-radius:10px}
+.dialog-heading{margin-bottom:8px}
+.dialog-heading .eyebrow{margin-bottom:3px}
+.profile-filters{margin-top:10px}
+.profile-metrics{gap:8px;margin:12px 0}
+.profile-metric{padding:9px 10px;border-radius:6px}
+.profile-metric strong{margin-top:4px}
+.game-score{padding:12px;border-radius:8px;margin-top:10px}
+.game-score strong{font-size:28px}
+.player-groups{margin:8px 0}
+@media(max-width:1150px){
+ .record-card>strong{font-size:32px}
+}
+@media(max-width:800px){
+ .header-inner{padding:10px 16px 0;gap:8px}
+ .hero{padding:12px 14px;flex-wrap:wrap;gap:6px}
+ .hero h1{font-size:26px}
+ .analysis-grid{margin-bottom:14px}
+}
+@media(max-width:540px){
+ main{padding:12px}
+ .header-inner{padding:8px 12px 0}
+ .hero{padding:12px}
+ .hero h1{font-size:25px;letter-spacing:-.6px}
+ .hero-copy{font-size:12px;line-height:1.5}
+ .filter-bar{margin-top:12px}
+ .filter-title h2{font-size:21px}
+ .filter-controls{margin-top:8px;gap:8px}
+ .summary-card{padding:10px 12px;border-radius:6px}
+ .summary-card>strong{font-size:26px}
+ .record-card>strong{font-size:30px;margin:0}
+ .record-card>span:not(.metric-label){font-size:11px;margin-top:4px}
+ .record-footer{margin-top:6px}
+ .summary-card>small{margin-top:6px}
+ .leaders-section{margin-top:16px}
+ .segmented{margin-top:8px}
+ .leader-card{padding:10px}
+ .leader-value{font-size:25px;margin:5px 0 2px}
+ .panel{padding:12px}
+ .profile-metric{padding:8px}
+ dialog{padding:12px;width:calc(100% - 16px);border-radius:8px}
+ .game-score{gap:10px}
+ th,td{padding:6px 9px}
+ .segmented button,.player-link,.sort-button,.game-card button,.metric-guide summary,.more-metrics summary{min-height:44px}
+ .header-inner nav a,.staff-links a{min-height:44px;display:flex;align-items:center}
+ .close-button{min-height:44px;width:44px}
+}
+
+.leader-card{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;align-content:start}
+.leader-top{grid-column:1;flex-wrap:wrap}
+.leader-value{grid-column:2;grid-row:1;margin:0;align-self:center}
+.leader-card .player-link{grid-column:1/-1}
+.leader-card small{grid-column:1/-1;margin:0;align-self:center}
+.leader-card small:last-child:nth-child(odd){grid-column:1/-1;margin-top:3px}
+#players>.section-heading{flex-wrap:wrap}
