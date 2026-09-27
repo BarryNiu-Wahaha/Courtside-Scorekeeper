@@ -3,7 +3,7 @@
   const T=typeof module!=='undefined'&&module.exports?require('./team.js'):root.TeamEngine;
   const C=typeof module!=='undefined'&&module.exports?require('./corrections.js'):root.EventCorrections;
   function assertMutable(game){T.assertMutable(game);}
-  function finalize(game,now=Date.now()){assertMutable(game);if(!game.finished||game.running)throw Error('End the game before exporting final results.');game.finalizedAt=new Date(now).toISOString();}
+  function finalize(game,now=Date.now()){if(!game.finished||game.running)throw Error('End the game before exporting final results.');if(!game.finalizedAt)game.finalizedAt=new Date(now).toISOString();}
   function correctEvents(game,changes,links=game.eventLinks||[],now=Date.now()){
     assertMutable(game);const result=C.prepare(game,changes,links,TYPES),id=uuid();
     const audit={id,at:new Date(now).toISOString(),changes:result.changes,linksBefore:game.eventLinks||[],linksAfter:result.links};
@@ -88,7 +88,12 @@
     if(p&&game.participation?.[p.id])game.participation[p.id].played=true;
     return event;
   }
-  function undo(game) {assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(e)correctEvents(game,[{eventId:e.event_id,patch:{is_voided:true}}],(game.eventLinks||[]).filter(l=>l.assistEventId!==e.event_id&&l.shotEventId!==e.event_id));return e?game.gameEvents.find(x=>x.event_id===e.event_id):null;}
+  function undo(game) {
+    assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(!e)return null;
+    const ids=new Set([e.event_id,...(game.eventLinks||[]).filter(l=>l.shotEventId===e.event_id).map(l=>l.assistEventId)]);
+    correctEvents(game,[...ids].map(eventId=>({eventId,patch:{is_voided:true}})),(game.eventLinks||[]).filter(l=>!ids.has(l.assistEventId)&&!ids.has(l.shotEventId)));
+    return game.gameEvents.find(x=>x.event_id===e.event_id);
+  }
   function stats(game,side,playerId) {
     const s={points:0,fgm:0,fga:0,twoMade:0,twoAttempts:0,threeMade:0,threeAttempts:0,ftm:0,fta:0,offensive:0,defensive:0,rebounds:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0};
     const mapping={OFF_REBOUND:'offensive',DEF_REBOUND:'defensive',ASSIST:'assists',STEAL:'steals',BLOCK:'blocks',TURNOVER:'turnovers',FOUL:'fouls'};

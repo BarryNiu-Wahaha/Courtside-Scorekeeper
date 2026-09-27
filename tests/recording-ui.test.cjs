@@ -6,3 +6,9 @@ test('final result export persists lock before download and rolls back storage f
  const order=[];X.exportGame(g,()=> 'csv',()=>order.push('saved'),()=>order.push('download'));assert.deepEqual(order,['saved','download']);assert.ok(g.finalizedAt);
  X.exportGame(g,()=> 'csv',()=>{throw Error('should not resave');},()=>order.push('again'));assert.equal(order.at(-1),'again');
 });
+test('export during a first pending upload keeps its own lock after definitive rejection',()=>{
+ const E=require('../src/engine.js'),R=require('../src/remote.js'),X=require('../src/result-export.js');
+ const g=E.createGame({date:'2026-09-26',opponent:'A',minutes:10,overtimeMinutes:5},[]);g.finished=true;g.remote={state:'pending',payload:{}};const prior=R.begin(g);let persisted=false;
+ X.exportGame(g,()=> 'csv',()=>{persisted=true;},()=>{});R.failed(g,{status:400},prior);
+ assert.equal(persisted,true);assert.ok(g.finalizedAt);assert.throws(()=>E.setClock(g,'01:00'));
+});

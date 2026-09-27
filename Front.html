@@ -187,7 +187,7 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     const end=Math.min(now,game.deadline),elapsed=elapsedMs(game,end);
     if(elapsed){for(const id of game.lineup){game.participation[id].playedMs+=elapsed;game.participation[id].played=true;}game.timingAnchor=end;revision(game,now);}
   }
-  function start(game,now){if(!game.squad)return;checkFive(game,game.lineup);game.timingAnchor=now;for(const id of game.lineup)game.participation[id].played=true;revision(game,now);}
+  function start(game,now){assertMutable(game);if(!game.squad)return;checkFive(game,game.lineup);game.timingAnchor=now;for(const id of game.lineup)game.participation[id].played=true;revision(game,now);}
   function substitute(game,ids,now=Date.now()){
     assertMutable(game);
     if(game.running||game.finished)fail('Pause the game before substituting.');checkFive(game,ids);game.lineup=[...ids];revision(game,now);
@@ -252,7 +252,7 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
   const T=typeof module!=='undefined'&&module.exports?require('./team.js'):root.TeamEngine;
   const C=typeof module!=='undefined'&&module.exports?require('./corrections.js'):root.EventCorrections;
   function assertMutable(game){T.assertMutable(game);}
-  function finalize(game,now=Date.now()){assertMutable(game);if(!game.finished||game.running)throw Error('End the game before exporting final results.');game.finalizedAt=new Date(now).toISOString();}
+  function finalize(game,now=Date.now()){if(!game.finished||game.running)throw Error('End the game before exporting final results.');if(!game.finalizedAt)game.finalizedAt=new Date(now).toISOString();}
   function correctEvents(game,changes,links=game.eventLinks||[],now=Date.now()){
     assertMutable(game);const result=C.prepare(game,changes,links,TYPES),id=uuid();
     const audit={id,at:new Date(now).toISOString(),changes:result.changes,linksBefore:game.eventLinks||[],linksAfter:result.links};
@@ -337,7 +337,12 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     if(p&&game.participation?.[p.id])game.participation[p.id].played=true;
     return event;
   }
-  function undo(game) {assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(e)correctEvents(game,[{eventId:e.event_id,patch:{is_voided:true}}],(game.eventLinks||[]).filter(l=>l.assistEventId!==e.event_id&&l.shotEventId!==e.event_id));return e?game.gameEvents.find(x=>x.event_id===e.event_id):null;}
+  function undo(game) {
+    assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(!e)return null;
+    const ids=new Set([e.event_id,...(game.eventLinks||[]).filter(l=>l.shotEventId===e.event_id).map(l=>l.assistEventId)]);
+    correctEvents(game,[...ids].map(eventId=>({eventId,patch:{is_voided:true}})),(game.eventLinks||[]).filter(l=>!ids.has(l.assistEventId)&&!ids.has(l.shotEventId)));
+    return game.gameEvents.find(x=>x.event_id===e.event_id);
+  }
   function stats(game,side,playerId) {
     const s={points:0,fgm:0,fga:0,twoMade:0,twoAttempts:0,threeMade:0,threeAttempts:0,ftm:0,fta:0,offensive:0,defensive:0,rebounds:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0};
     const mapping={OFF_REBOUND:'offensive',DEF_REBOUND:'defensive',ASSIST:'assists',STEAL:'steals',BLOCK:'blocks',TURNOVER:'turnovers',FOUL:'fouls'};
@@ -428,7 +433,7 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
  function exportGame(game,prepare,persist,download){
    if(!game.finished)throw Error('End the game before exporting final results.');
    const content=prepare();
-   if(!game.finalizedAt&&!game.remote){E.finalize(game);try{persist();}catch(error){delete game.finalizedAt;throw error;}}
+   if(!game.finalizedAt){E.finalize(game);try{persist();}catch(error){delete game.finalizedAt;throw error;}}
    download(content);
  }
  const api={exportGame};if(typeof module==='object'&&module.exports)module.exports=api;else root.ResultExport=api;
@@ -585,7 +590,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
     $('adjust-button').disabled=g.running||g.finished;
     $('period-button').disabled=g.running||g.finished;
     $('period-button').textContent=g.period<4?'Next quarter →':'Next overtime →';
-    if(!$('box-view').hidden)renderBox();
+    if(!$('box-view').hidden&&!g.finished)renderBox();
   }
   function render(){
     const g=current(); const roster=g?(g.lineup?g.roster.filter(p=>g.lineup.includes(p.id)):g.finished?g.roster:[]):[];
@@ -645,7 +650,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   function exportResults(kind,prepare){
     const g=current();if(!g)return;if(!g.finished){toast('End the game before exporting final results.',true);return;}
     const action=()=>{try{ResultExport.exportGame(g,()=>prepare(g),()=>{if(saveBlocked)throw Error('Restore browser saving before finalizing.');localStorage.setItem(KEY,JSON.stringify(state));},content=>download(content,`${g.id}_${kind}.csv`,'text/csv;charset=utf-8'));render();toast('Results exported. This game is locked; you can download its results again.');}catch(error){toast(error.message,true);}};
-    if(g.finalizedAt||g.remote)action();else confirm('Finalize and export?','Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',action);
+    if(g.finalizedAt)action();else confirm('Finalize and export?','Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',action);
   }
   $('clock-speed').addEventListener('change',()=>run(()=>E.setSpeed(current(),Number($('clock-speed').value))));
   let correctionId=null;
@@ -667,7 +672,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
     const changes=[{eventId:correctionId,patch},...Array.from(document.querySelectorAll('[data-related-delete]:checked'),el=>({eventId:Number(el.dataset.relatedDelete),patch:{is_voided:true}}))];
     let links=(g.eventLinks||[]).filter(l=>l.assistEventId!==correctionId&&l.shotEventId!==correctionId);
     if(!$('correction-unlink').checked)for(const el of document.querySelectorAll('[data-related-link]:checked')){const other=Number(el.dataset.relatedLink);links.push(patch.event_type==='ASSIST'?{assistEventId:correctionId,shotEventId:other}:{assistEventId:other,shotEventId:correctionId});}
-    const deleted=new Set(changes.filter(c=>c.patch.is_voided).map(c=>c.eventId));links=links.filter(l=>!deleted.has(l.assistEventId)&&!deleted.has(l.shotEventId));
+    const deleted=new Set(changes.filter(c=>c.patch.is_voided).map(c=>c.eventId));links=links.filter(l=>!deleted.has(l.assistEventId));
     E.correctEvents(g,changes,links);save();render();$('correction-dialog').close();toast('Correction saved. Scores and statistics recalculated.');
   }catch(error){$('correction-error').textContent=error.message;}});
   $('correction-restore').addEventListener('click',()=>{try{E.restoreDeletion(current(),$('correction-restore').dataset.transaction);save();render();$('correction-dialog').close();toast('Deletion group restored.');}catch(error){$('correction-error').textContent=error.message;}});

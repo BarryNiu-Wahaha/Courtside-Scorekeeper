@@ -65,10 +65,11 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  await click('[data-player="P_DEFAULT_002"]');await click('[data-stat="ASSIST"]');
  await click('[data-event="1"]');assert.equal((await current()).running,false);await value('#correction-type','3PT_MADE');await click('[data-related-link="2"]');await click('#correction-form button[type=submit]');
  assert.equal((await current()).gameEvents[0].points_value,3);assert.equal((await current()).eventLinks.length,1);
- await click('[data-event="1"]');await click('#correction-delete');await click('[data-related-delete="2"]');await click('#correction-form button[type=submit]');
+ await click('[data-event="1"]');await click('#correction-delete');await click('#correction-form button[type=submit]');assert.equal(await evaluate('document.querySelector("#correction-dialog").open'),true,'linked assist must be explicitly resolved');assert.equal((await current()).gameEvents[0].is_voided,false);await click('[data-related-delete="2"]');await click('#correction-form button[type=submit]');
  assert.equal((await current()).gameEvents.filter(e=>!e.is_voided).length,0);
  await click('[data-event="1"]');await click('#correction-restore');assert.equal((await current()).gameEvents.filter(e=>!e.is_voided).length,2);
  await click('#finish-button');await click('#confirm-yes');await click('#box-tab');assert.ok((await evaluate('document.querySelector("#box-table").textContent')).includes('TS%'));
+ await evaluate('document.querySelector("#player-export-button").focus()');await delay(450);assert.equal(await evaluate('document.activeElement.id'),'player-export-button','finished summary must preserve keyboard focus between clock ticks');
  await click('#player-export-button');await click('#confirm-yes');assert.ok((await current()).finalizedAt);assert.equal(await evaluate('document.querySelector("#finish-button").disabled'),true);
  await click('#export-button');await send('Page.reload');await delay(300);assert.ok((await current()).finalizedAt);
  await screenshot('recording-improvements-mobile',390,844);assert.deepEqual(errors,[]);console.log('Recording improvements browser checks passed.');

@@ -3,7 +3,7 @@
  function exportGame(game,prepare,persist,download){
    if(!game.finished)throw Error('End the game before exporting final results.');
    const content=prepare();
-   if(!game.finalizedAt&&!game.remote){E.finalize(game);try{persist();}catch(error){delete game.finalizedAt;throw error;}}
+   if(!game.finalizedAt){E.finalize(game);try{persist();}catch(error){delete game.finalizedAt;throw error;}}
    download(content);
  }
  const api={exportGame};if(typeof module==='object'&&module.exports)module.exports=api;else root.ResultExport=api;

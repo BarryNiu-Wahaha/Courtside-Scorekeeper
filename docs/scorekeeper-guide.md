@@ -15,7 +15,7 @@ Open **Front.html** in a modern browser to use the standalone offline scorekeepe
 5. Switch to **Opponent** to record team-level opponent stats. Those events have no player identity.
 6. **Undo last** marks the latest active event as voided. Its row remains in the log; its effect on the score and box score is removed. Event IDs are never reused. This does not undo substitutions.
 7. While paused, use **Next quarter** or **Next overtime**. The new period begins paused. Regulation has four quarters; overtime is labeled `OT1`, `OT2`, etc.
-8. **End game**, then **Export Game Event Log**. In **Box score**, use **Export participation CSV** for minutes and designated bench players. A completed game can be reopened for corrections. **New game** keeps prior games in **Game history**.
+8. **End game**, review and correct recorded actions, then **Export Game Event Log**. In **Box score**, export participation or player statistics. The first result export finalizes the game and locks editing; before export, a completed game can still be reopened. **New game** keeps prior games in **Game history**.
 
 The English layout is optimized for landscape iPad. Portrait uses a two-column player/action layout with the event feed underneath; narrow phones show the five players in a compact grid. Minutes follow running game-clock time and stop during pauses or at period expiry. Legacy archived games show unavailable minutes; continuing an older game requires selecting a squad and current five, and its newly measured minutes are labeled partial.
 
@@ -33,7 +33,7 @@ Use **Download backup** regularly. Its JSON file includes the roster, IDs, all g
 
 ## CSV contract
 
-There are three separate exports: **roster CSV** for all permanent university players, **event log CSV** for plays, and **participation CSV** for the game squad, starters, appearances, and minutes. Guests keep separate event rows under `P_GUEST`; their participation counts and time are added together. Individual guest names are not included in these database exports. JSON backup retains the full local workspace.
+There are four separate CSV exports: **roster CSV** for university players, **event log CSV** for plays, **participation CSV** for the game squad and minutes, and **player statistics CSV** for individual basic and advanced metrics. In the database-oriented event and participation exports, guests use `P_GUEST` and participation counts/time are combined without individual guest names. The analytical player export and JSON backup retain individual local guests.
 
 One event per row, including voided rows. UTF-8 with BOM, CRLF line endings, CSV escaping for commas, quotes and newlines. Headers:
 
