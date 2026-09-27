@@ -38,4 +38,13 @@ The reviewer also identified a direct TeamEngine.start guard gap. This was treat
 - Retained exact lineup upload JSON alongside normalized membership tables so retries and audits preserve documents. MySQL public calculations use normalized memberships. Both representations are written in one transaction; round-trip and rollback tests cover consistency.
 - Direct team-start calls now respect finalization, matching the other public mutation entry points. Invalid callers that relied on bypassing locks now fail.
 - Actual download cancellation cannot be detected by browser code. Finalization persists before initiation, and re-download is always available; cancellation intentionally does not unlock a game.
-- Production database migration and deployment were not performed. Deployment must apply the additive migration and backend support before publishing the v2 recorder. Older games cannot acquire trustworthy plus-minus without historical lineup information.
+- Older games cannot acquire trustworthy plus-minus without historical lineup information.
+
+## Live release — 2026-09-27 UTC
+
+- Deployed application commit `62e0c7e4bd84d7ed6873223e6a0d1079ddc04f53`. Render deployment `dep-das865fpn0mc73f85kc0` reached `live` at 02:45:01 UTC.
+- Created a full private database backup and verified its restoration into an isolated MySQL instance against the original table checksums.
+- Applied the additive event lineup migration before publishing the v2 recorder. Existing game, roster, and audit data checksums remained unchanged through migration and release; publication metadata changed as expected.
+- Published public revision 12 at https://courtside-team.pages.dev. Fresh Edge checks verified the recorder speed controls, correction dialog, schema v2 support, and plus-minus column in the individual game box score, with no JavaScript exceptions.
+- Live verification at 02:50:54 UTC found one public game, 37 roster entries, and 14 player box-score rows. All historical player rows correctly report unavailable plus-minus because they lack lineup history. No synthetic game was uploaded during live verification.
+- Private backup and release evidence remain in the ignored local workspace directories; credentials are excluded from this report and version control.
