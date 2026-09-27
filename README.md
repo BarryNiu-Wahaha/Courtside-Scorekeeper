@@ -20,36 +20,29 @@
 
 ## See the product
 
-**Public analytics:** season, year, and career filters; player leaders; searchable profiles; shooting splits; and individual game reports with team comparisons and player plus/minus.
+### Public dashboard
 
-![CourtSide dashboard showing season filters, team metrics, and player leader cards](docs/assets/dashboard.png)
+Season, year, and career filters; player leaders; searchable profiles; shooting splits; and individual game reports with team comparisons and player plus/minus.
 
-<details>
-<summary><strong>View the courtside recording interface</strong></summary>
+![CourtSide dashboard showing season filters, team metrics, and player leader cards](docs/assets/dashboard-current.png)
 
-![CourtSide tablet scorekeeper showing the current five players, stat buttons, clock, and event history](docs/assets/scorekeeper.png)
+### Scorekeeper with adjustable clock speed
+
+![CourtSide tablet scorekeeper showing the current five players, stat buttons, 2× clock speed, and event history](docs/assets/scorekeeper-current.png)
 
 The recorder supports 13 event types, own-team player statistics, opponent team totals, substitutions, and playing-time tracking. Use 1×, 1.5×, 2×, or 4× game-clock speed while watching video on a separate device. New games start at 1×. Its standalone build works offline without external scripts or stylesheets.
 
-</details>
+### Edit and restore recorded plays
 
-<details>
-<summary><strong>View event corrections</strong></summary>
-
-![Current event correction dialog for editing a recorded play while retaining its original time and lineup](docs/assets/event-correction.png)
+![Current event correction dialog for editing a recorded play while retaining its original time and lineup](docs/assets/event-correction-current.png)
 
 Select a statistical event to edit or delete it without removing later valid plays. Resolve linked assists explicitly and restore deleted groups when needed. Corrections remain available after the game ends until the first result export finalizes the game; downloads can be repeated.
 
-</details>
+### Game report with player plus/minus
 
-<details>
-<summary><strong>View an individual game report</strong></summary>
-
-![Game report with score, estimated metrics, team comparison, and a player box score including plus/minus](docs/assets/game-box.png)
+![Game report with score, estimated metrics, team comparison, and a player box score including plus/minus](docs/assets/game-box-current.png)
 
 Public plus/minus appears only in individual game box scores. It uses the players on court for each score; historical games without complete lineup history show **—**. The recorder's postgame summary and analytical CSV also include FG%, 3P%, FT%, eFG%, TS%, and assist/turnover ratio.
-
-</details>
 
 *Screenshots refreshed September 26, 2026 using demonstration game data. They illustrate the implemented UI, not measured team performance.*
 
