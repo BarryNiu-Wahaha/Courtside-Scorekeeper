@@ -43,6 +43,20 @@ Detailed implementation evidence: [recording improvements verification](../../re
 
 ## Next session
 
+### README follow-up completed
+
+After the initial handoff, the user requested current interface screenshots in the README. Captured the current application locally in Edge with demonstration data, refreshed the dashboard and recorder images, and added event correction and individual game report images. Updated the feature descriptions, lineup tables, pace eligibility explanation, and test commands. Checked local links, image references, screenshot appearance, and whitespace.
+
+The final requested presentation is **all four screenshots collapsed by default**, each under a clickable “Show … screenshot” disclosure. Section headings and descriptions remain visible. This includes the public dashboard image. Preserve this preference; do not expand the pictures by default.
+
+- Screenshot files: `docs/assets/dashboard-current.png`, `scorekeeper-current.png`, `event-correction-current.png`, and `game-box-current.png`.
+- README/image update: `1599660`; screenshot filename and presentation update: `1f7ddaa`; final collapsed-image layout: `16e0702`. All pushed to `main`.
+- These are documentation-only changes. The deployed application remains at `62e0c7e`, and the latest verified public data revision remains 13. No additional application deployment was needed.
+- Private capture helpers remain under `.local/prepare_readme_captures.py` and `.local/capture_readme_*.cjs`. They were used before the image filenames gained `-current`; update their output paths before any future reuse.
+- The user asked about skills for simpler, more readable code. Explained available skills and the `simple ds` shortcut, but **no code readability refactor was requested or performed**.
+
+### Next real-game checks
+
 1. Record the next real game with the game clock and own-team lineup maintained throughout. Opponent scores remain team-level entries.
 2. Check the next upload's minutes, pace, and individual box-score plus/minus. Exact plus/minus needs complete lineup history; do not reconstruct old lineups from totals.
 3. A real iPad Safari/touch check remains useful; desktop Edge automation does not establish real-device behavior.
