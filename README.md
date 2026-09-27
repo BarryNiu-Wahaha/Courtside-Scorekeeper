@@ -20,7 +20,7 @@
 
 ## See the product
 
-**Public analytics:** season, year, and career filters; player leaders; searchable profiles; shooting splits; and game reports.
+**Public analytics:** season, year, and career filters; player leaders; searchable profiles; shooting splits; and individual game reports with team comparisons and player plus/minus.
 
 ![CourtSide dashboard showing season filters, team metrics, and player leader cards](docs/assets/dashboard.png)
 
@@ -29,11 +29,29 @@
 
 ![CourtSide tablet scorekeeper showing the current five players, stat buttons, clock, and event history](docs/assets/scorekeeper.png)
 
-The recorder supports 13 event types, both teams' statistics, substitutions, playing-time tracking, corrections, and CSV/JSON exports. Its standalone build works offline without external scripts or stylesheets.
+The recorder supports 13 event types, own-team player statistics, opponent team totals, substitutions, and playing-time tracking. Use 1×, 1.5×, 2×, or 4× game-clock speed while watching video on a separate device. New games start at 1×. Its standalone build works offline without external scripts or stylesheets.
 
 </details>
 
-*Screenshots use demonstration game data. They illustrate the implemented UI, not measured team performance.*
+<details>
+<summary><strong>View event corrections</strong></summary>
+
+![Current event correction dialog for editing a recorded play while retaining its original time and lineup](docs/assets/event-correction.png)
+
+Select a statistical event to edit or delete it without removing later valid plays. Resolve linked assists explicitly and restore deleted groups when needed. Corrections remain available after the game ends until the first result export finalizes the game; downloads can be repeated.
+
+</details>
+
+<details>
+<summary><strong>View an individual game report</strong></summary>
+
+![Game report with score, estimated metrics, team comparison, and a player box score including plus/minus](docs/assets/game-box.png)
+
+Public plus/minus appears only in individual game box scores. It uses the players on court for each score; historical games without complete lineup history show **—**. The recorder's postgame summary and analytical CSV also include FG%, 3P%, FT%, eFG%, TS%, and assist/turnover ratio.
+
+</details>
+
+*Screenshots refreshed September 26, 2026 using demonstration game data. They illustrate the implemented UI, not measured team performance.*
 
 ## Skills demonstrated
 
@@ -90,11 +108,15 @@ A pending upload retains its exact payload across retries. Ambiguous network fai
 
 Voided plays remain in the event log, and administrative changes preserve prior documents in an audit table. Participation snapshots carry a revision and content hash so stale or conflicting snapshots cannot silently replace newer playing-time data.
 
+Event corrections retain the original time and lineup so historical plus/minus can be recalculated. Schema v2 uploads preserve lineup snapshots alongside the event and participation records. Export finalization persists independently of upload success or failure.
+
 ### 4. Analytics that account for missing data
 
 Games played comes from participation, including zero-stat appearances and excluding unused bench players. Shooting percentages divide total makes by total attempts. Aggregate pace and ratings use eligible possessions and duration.
 
 Missing opponent detail stays unavailable rather than becoming zero. Partial playing time is labeled, and pace/efficiency estimates require sufficient recording coverage. [Read the metric definitions and eligibility rules.](docs/public-dashboard.md#metric-definitions)
+
+Pace requires reliable game duration. The first recorded game's unreliable duration is marked unavailable, excluding that game from both individual and aggregate pace while retaining its other statistics. Later games with recorded duration and complete statistics remain eligible.
 
 ### 5. Practical cloud and security boundaries
 
@@ -109,6 +131,8 @@ The deployment targets one team and free-tier hosting. Backend cold starts and o
 | `players` | One permanent player identity; current roster attributes. |
 | `games` | One game; stable ID, date, and opponent. |
 | `events` | One recorded play per `(game_id, event_id)`; historical player details and void status. |
+| `event_lineup_snapshots` | Lineup coverage for each recorded event, including unknown historical lineups. |
+| `event_lineup_members` | Own-team players on court for an event; supports historical plus/minus. |
 | `game_participation` | One game/player record; designated status, starts, appearances, and playing milliseconds. |
 | `participation_snapshots` | One participation revision per game; coverage and content hash. |
 | `remote_uploads` | One remote upload record per game; version, original hash, payload, and deletion state. |
@@ -161,7 +185,7 @@ The tests exercise data integrity and recovery behavior as well as calculations:
 
 ```sh
 # JavaScript unit tests
-node --test tests/engine.test.cjs tests/team.test.cjs tests/remote.test.cjs tests/analytics.test.cjs
+node --test tests/*.test.cjs
 
 # Python validation, API, publication, and analytics tests
 python -m unittest discover -s tests -p "test_*.py" -v
@@ -169,6 +193,7 @@ python -m unittest discover -s tests -p "test_*.py" -v
 # Build the standalone UI and exercise it in a real browser
 node build.cjs
 node tests/browser-smoke.cjs
+node tests/browser-recording-improvements.cjs
 ```
 
 Python discovery skips database integration cases unless their test environment is configured. Run `python tests/run_mysql_tests.py` for the isolated database suite; it requires an installed MySQL server binary (`MYSQLD_PATH`). Browser tests use Microsoft Edge on Windows or a Chromium executable set through `EDGE_PATH`. See the [deployment guide](docs/remote-deployment.md#working-locally) for hosted browser-test build commands. Real iPad Safari/touch validation remains a separate device check.
