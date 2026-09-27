@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from scorekeeper_pipeline.roster import read_participation, read_roster
 from scorekeeper_pipeline.validation import COLUMNS, Batch, ValidationError, read_csv
+from .lineups import validate_lineups
 
 @dataclass(frozen=True)
 class Bundle:
@@ -24,7 +25,7 @@ def _read(text, reader, name):
         return reader(path)
 
 def validate_upload(document):
-    if not isinstance(document,dict) or type(document.get('schema_version')) is not int or document.get('schema_version')!=1: raise ValidationError('schema_version must be 1')
+    if not isinstance(document,dict) or type(document.get('schema_version')) is not int or document.get('schema_version') not in (1,2): raise ValidationError('schema_version must be 1 or 2')
     if document.get('finished') is not True: raise ValidationError('Only finished games may upload')
     participation=tuple(_read(document.get('participation_csv'),read_participation,'participation.csv'))
     events_text=document.get('events_csv')
@@ -43,7 +44,9 @@ def validate_upload(document):
     for event in events.events:
         if event.player_id and (event.player_id not in identities or identities[event.player_id][:2]!=(event.player_name,event.jersey_number) or (not event.is_voided and identities[event.player_id][2]<1)):
             raise ValidationError('Event and participation player identity snapshots differ')
-    normalized={'schema_version':1,'finished':True,'events_csv':events_text,'participation_csv':document['participation_csv']}
+    normalized={'schema_version':document['schema_version'],'finished':True,'events_csv':events_text,'participation_csv':document['participation_csv']}
+    if document['schema_version']==2:normalized['lineups']=validate_lineups(document.get('lineups'),events.events,participation)
+    elif 'lineups' in document:raise ValidationError('Lineups require schema_version 2')
     # Preserve absence for legacy retry hashes; metadata is optional in v1.
     if 'game_details' in document:
         details=document['game_details']

@@ -23,6 +23,28 @@ class RemoteMySQLTests(unittest.TestCase):
         changed=dict(self.payload);changed['events_csv']=changed['events_csv'].replace('09:00','08:59')
         with self.assertRaises(Conflict):self.repo.save_initial(validate_upload(changed))
 
+    def test_lineup_v2_migration_roundtrip_correction_and_rollback(self):
+        from tests.test_lineups import payload_v2
+        import json
+        _,p=payload_v2();self.repo.save_initial(validate_upload(p));self.repo.migrate()
+        self.assertEqual(self.repo.get_game('G_REMOTE_1')['upload']['lineups'],p['lineups'])
+        self.assertEqual(self.repo.snapshot()['games'][0]['players'][0]['plus_minus'],2)
+        p['events_csv']=p['events_csv'].replace('2PT_MADE,2','3PT_MADE,3')
+        self.repo.replace('G_REMOTE_1',1,validate_upload(p))
+        self.assertEqual(self.repo.snapshot()['games'][0]['players'][0]['plus_minus'],3)
+        with D.connect(self.config) as c:
+            with c.cursor() as q:
+                q.execute('SELECT prior_document FROM remote_audit WHERE game_id=%s',('G_REMOTE_1',))
+                self.assertIn('lineups',json.loads(q.fetchone()['prior_document']))
+                q.execute('SELECT COUNT(*) AS n FROM event_lineup_members');self.assertEqual(q.fetchone()['n'],5)
+        original=self.repo._write
+        def broken(q,bundle):original(q,bundle);raise RuntimeError('after lineup write')
+        self.repo._write=broken
+        with self.assertRaises(RuntimeError):self.repo.replace('G_REMOTE_1',2,validate_upload(p))
+        self.repo._write=original
+        self.assertEqual(self.repo.get_game('G_REMOTE_1')['version'],2)
+        self.assertEqual(self.repo.snapshot()['games'][0]['players'][0]['plus_minus'],3)
+
     def test_dashboard_details_migration_edit_and_audit_roundtrip(self):
         import json
         self.payload['game_details']=dict(category='friendly',duration_ms=600000,stats_complete=True)

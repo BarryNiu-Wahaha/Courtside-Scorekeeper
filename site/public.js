@@ -186,7 +186,8 @@
     if(m.possessions===null)$('game-comparison').append(el('p','Pace and ratings require confirmed full statistics for both teams and positive estimated possessions.','section-note'));
     else if(m.pace===null)$('game-comparison').append(el('p','Pace is unavailable because game duration was not recorded.','section-note'));
     if(!a)$('game-comparison').append(el('p','Opponent detail was not recorded for this game. Its final score is still available.','section-note'));
-    $('box-table').replaceChildren(table(['Player','MIN','PTS','FG','FG%','3PT','FT','OREB','DREB','REB','AST','STL','BLK','TO','PF'],(g.players||[]).map(p=>{const s={...A.empty(),...p.stats};return [p.player_name,p.played_count===0?'DNP':p.played_ms==null?'—':fmt(p.played_ms/60000)+(g.coverage==='complete'?'':'*'),...teamCells(s)];})));
+    $('box-table').replaceChildren(table(['Player','MIN','PTS','FG','FG%','3PT','FT','OREB','DREB','REB','AST','STL','BLK','TO','PF','+/−'],(g.players||[]).map(p=>{const s={...A.empty(),...p.stats};return [p.player_name,p.played_count===0?'DNP':p.played_ms==null?'—':fmt(p.played_ms/60000)+(g.coverage==='complete'?'':'*'),...teamCells(s),p.plus_minus_status==='complete'&&Number.isFinite(p.plus_minus)?(p.plus_minus>0?'+'+p.plus_minus:String(p.plus_minus)):'—'];})));
+    $('box-table').append(el('p','+/− is our scoring margin while each player was on court. — means historical lineup data is incomplete or the row combines guests.','section-note'));
     if(!$('box-dialog').open){$('box-dialog').showModal();animateIn($('box-dialog'),'sheet');}
   }
   async function load(){

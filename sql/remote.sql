@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS remote_uploads (
  game_id VARCHAR(128) PRIMARY KEY, version BIGINT NOT NULL DEFAULT 1, original_hash CHAR(64) NOT NULL,
  deleted BOOLEAN NOT NULL DEFAULT FALSE, schema_version SMALLINT NOT NULL, finished BOOLEAN NOT NULL,
- events_csv MEDIUMTEXT NOT NULL, participation_csv MEDIUMTEXT NOT NULL,
+ events_csv MEDIUMTEXT NOT NULL, participation_csv MEDIUMTEXT NOT NULL, lineups_json JSON NULL,
  FOREIGN KEY (game_id) REFERENCES games(game_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 CREATE TABLE IF NOT EXISTS remote_audit (

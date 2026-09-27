@@ -1,5 +1,6 @@
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 const {snapshot}=require('./dashboard-fixture.cjs');
+for(const game of snapshot.games)for(const [index,player] of game.players.entries()){player.plus_minus=index===0?8:index===1?-3:0;player.plus_minus_status='complete';}
 const E=require('../src/engine.js'),T=require('../src/team.js');
 function groupSnapshot(){
  const doc=structuredClone(snapshot),zero={...doc.games[0].players[0].stats};for(const key in zero)zero[key]=0;
@@ -37,7 +38,7 @@ async function shot(name){fs.writeFileSync(path.join(artifacts,name+'.png'),Buff
  assert.equal(await evaluate("document.querySelector('#record').textContent"),'5–2–0');
  assert.equal(await evaluate("document.querySelectorAll('.leader-card').length"),6);
  assert.equal(await evaluate("document.querySelector('#latest-game')?.dataset.gameId"),'winter','overview leads with latest game in selected period');
- await click('#latest-game .latest-report');assert.equal(await evaluate("document.querySelector('#box-dialog').open"),true);await click('#box-close');
+ await click('#latest-game .latest-report');assert.equal(await evaluate("document.querySelector('#box-dialog').open"),true);assert.ok((await evaluate("document.querySelector('#box-table').textContent")).includes('+/−'));assert.ok((await evaluate("document.querySelector('#box-table').textContent")).includes('+8'));await click('#box-close');
  await shot('dashboard-desktop');
  const density=await evaluate(`({leadersBottom:document.querySelector('#leader-grid').getBoundingClientRect().bottom,playersTop:document.querySelector('#players').getBoundingClientRect().top})`);
  console.log('Desktop content positions:',density);

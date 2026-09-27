@@ -17,7 +17,7 @@ function parseCSV(text){
 function prepare(game,E,T,options={}){
   if(!game?.finished)throw Error('Finish this game before uploading.');
   if(game.remote?.payload)return game.remote.payload;
-  const payload={schema_version:1,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game)};
+  const payload={schema_version:2,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game),lineups:{version:1,snapshots:game.gameEvents.map(e=>({event_id:e.event_id,status:e.lineupSnapshot?.status||'unknown',members:(e.lineupSnapshot?.playerIds||[]).map(id=>({local_player_id:id,player_id:game.roster.find(p=>p.id===id)?.guest?T.GUEST:id}))}))}};
   const parts=parseCSV(payload.participation_csv).rows;
   const duration=parts.every(p=>p.coverage==='complete')?Math.round(parts.reduce((n,p)=>n+Number(p.played_ms),0)/5):null;
   payload.game_details={category:game.category??null,duration_ms:duration>0&&duration<=86400000?duration:null,stats_complete:options.statsComplete===true};

@@ -50,6 +50,7 @@ class MemoryRepository:
             if not g:raise KeyError(game_id)
             if bundle.game_id!=game_id:raise Conflict('Replacement upload must preserve game_id')
             if g['version']!=version:raise Conflict('version conflict')
+            if g['upload']['schema_version']==2 and bundle.upload['schema_version']!=2:raise Conflict('Replacement must preserve lineup metadata using schema_version 2')
             self._check_roster(bundle); g['audit'].append(copy.deepcopy(g['upload']))
             g.update(game_date=bundle.game_date,opponent=bundle.opponent,upload=copy.deepcopy(bundle.upload),events=bundle.events.events,participation=bundle.participation,coverage=bundle.participation[0]['coverage'],version=version+1)
             self.revision+=1; return self.get_game(game_id)
@@ -90,6 +91,11 @@ class MySQLRepository:
             with c.cursor() as q:
                 for statement in sql.split(';'):
                     if statement.strip():q.execute(statement)
+                q.execute("SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='remote_uploads' AND column_name='lineups_json'")
+                if not q.fetchone()['n']:q.execute('ALTER TABLE remote_uploads ADD COLUMN lineups_json JSON NULL')
+                lineup_sql=(Path(__file__).resolve().parents[1]/'sql'/'migrate_event_lineups.sql').read_text(encoding='utf-8')
+                for statement in lineup_sql.split(';'):
+                    if statement.strip():q.execute(statement)
             c.commit()
     def _publication_pending(self,q):
         q.execute("UPDATE remote_publication SET revision=revision+1,state='pending',last_error=NULL WHERE singleton=1")
@@ -112,6 +118,10 @@ class MySQLRepository:
             if row['player_id']=='P_GUEST':q.execute("INSERT INTO players(player_id,player_name,jersey_number,is_guest,roster_managed) VALUES('P_GUEST','Guest Player',0,TRUE,FALSE) ON DUPLICATE KEY UPDATE player_name='Guest Player',jersey_number=0,is_guest=TRUE")
         fields=('game_id','event_id','player_id','player_name','jersey_number','quarter','game_clock','event_type','points_value','recorded_at','team_side','is_voided')
         for e in bundle.events.events:q.execute('INSERT INTO events('+','.join(fields)+') VALUES('+','.join(['%s']*len(fields))+')',tuple(getattr(e,k) for k in fields))
+        for snap in bundle.upload.get('lineups',{}).get('snapshots',[]):
+            q.execute('INSERT INTO event_lineup_snapshots(game_id,event_id,status) VALUES(%s,%s,%s)',(bundle.game_id,snap['event_id'],snap['status']))
+            for member in snap['members']:
+                q.execute('INSERT INTO event_lineup_members(game_id,event_id,local_player_id,player_id) VALUES(%s,%s,%s,%s)',(bundle.game_id,snap['event_id'],member['local_player_id'],member['player_id']))
         pfields=('game_id','player_id','player_name','jersey_number','designated_count','starter_count','played_count','played_ms')
         for row in bundle.participation:q.execute('INSERT INTO game_participation('+','.join(pfields)+') VALUES('+','.join(['%s']*len(pfields))+')',tuple(row[k] for k in pfields))
         first=bundle.participation[0];q.execute('INSERT INTO participation_snapshots(game_id,revision,coverage,content_hash) VALUES(%s,%s,%s,%s)',(bundle.game_id,first['revision'],first['coverage'],hashlib.sha256(bundle.upload['participation_csv'].encode()).hexdigest()))
@@ -132,7 +142,7 @@ class MySQLRepository:
                     self._check_roster(q,bundle)
                     q.execute('INSERT INTO games(game_id,game_date,opponent) VALUES(%s,%s,%s)',(bundle.game_id,bundle.game_date,bundle.opponent))
                     self._write(q,bundle)
-                    q.execute('INSERT INTO remote_uploads(game_id,original_hash,schema_version,finished,events_csv,participation_csv) VALUES(%s,%s,1,TRUE,%s,%s)',(bundle.game_id,h,bundle.upload['events_csv'],bundle.upload['participation_csv']))
+                    q.execute('INSERT INTO remote_uploads(game_id,original_hash,schema_version,finished,events_csv,participation_csv,lineups_json) VALUES(%s,%s,%s,TRUE,%s,%s,%s)',(bundle.game_id,h,bundle.upload['schema_version'],bundle.upload['events_csv'],bundle.upload['participation_csv'],json.dumps(bundle.upload['lineups']) if 'lineups' in bundle.upload else None))
                     self._publication_pending(q)
                 c.commit();return {'game_id':bundle.game_id,'version':1,'unchanged':False}
             except Exception:c.rollback();raise
@@ -144,11 +154,12 @@ class MySQLRepository:
     def get_game(self,game_id):
         with self.D.connect(self.config) as c:
             with c.cursor() as q:
-                q.execute('SELECT r.game_id,g.game_date,g.opponent,r.version,r.deleted,r.schema_version,r.finished,r.events_csv,r.participation_csv FROM remote_uploads r JOIN games g USING(game_id) WHERE r.game_id=%s',(game_id,));r=q.fetchone()
+                q.execute('SELECT r.game_id,g.game_date,g.opponent,r.version,r.deleted,r.schema_version,r.finished,r.events_csv,r.participation_csv,r.lineups_json FROM remote_uploads r JOIN games g USING(game_id) WHERE r.game_id=%s',(game_id,));r=q.fetchone()
                 details=self._details(q,game_id)
         if not r:raise KeyError(game_id)
         r['finished']=bool(r['finished'])
         document={k:r[k] for k in ('schema_version','finished','events_csv','participation_csv')}
+        if r.get('lineups_json') is not None:document['lineups']=json.loads(r['lineups_json'])
         if details is not None: document['game_details']=details
         return {'game_id':r['game_id'],'game_date':r['game_date'].isoformat(),'opponent':r['opponent'],'version':r['version'],'deleted':bool(r['deleted']),'upload':document}
     def _details(self,q,game_id):
@@ -158,6 +169,7 @@ class MySQLRepository:
         return details
     def _audit(self,q,row,action):
         doc={k:row[k] for k in ('schema_version','finished','events_csv','participation_csv')}
+        if row.get('lineups_json') is not None:doc['lineups']=json.loads(row['lineups_json'])
         details=self._details(q,row['game_id'])
         if details is not None: doc['game_details']=details
         q.execute('INSERT INTO remote_audit(game_id,prior_version,action,prior_document) VALUES(%s,%s,%s,%s)',(row['game_id'],row['version'],action,json.dumps(doc)))
@@ -171,10 +183,11 @@ class MySQLRepository:
                     if not old:raise KeyError(game_id)
                     if old['version']!=version:raise Conflict('version conflict')
                     if bundle.game_id!=game_id:raise Conflict('Replacement upload must preserve game_id')
+                    if old['schema_version']==2 and bundle.upload['schema_version']!=2:raise Conflict('Replacement must preserve lineup metadata using schema_version 2')
                     self._check_roster(q,bundle);self._audit(q,old,'replace')
                     q.execute('DELETE FROM events WHERE game_id=%s',(game_id,));q.execute('DELETE FROM game_participation WHERE game_id=%s',(game_id,));q.execute('DELETE FROM participation_snapshots WHERE game_id=%s',(game_id,))
                     q.execute('UPDATE games SET game_date=%s,opponent=%s WHERE game_id=%s',(bundle.game_date,bundle.opponent,game_id));self._write(q,bundle)
-                    q.execute('UPDATE remote_uploads SET version=version+1,schema_version=1,finished=TRUE,events_csv=%s,participation_csv=%s WHERE game_id=%s',(bundle.upload['events_csv'],bundle.upload['participation_csv'],game_id));self._publication_pending(q)
+                    q.execute('UPDATE remote_uploads SET version=version+1,schema_version=%s,finished=TRUE,events_csv=%s,participation_csv=%s,lineups_json=%s WHERE game_id=%s',(bundle.upload['schema_version'],bundle.upload['events_csv'],bundle.upload['participation_csv'],json.dumps(bundle.upload['lineups']) if 'lineups' in bundle.upload else None,game_id));self._publication_pending(q)
                 c.commit();return self.get_game(game_id)
             except Exception:c.rollback();raise
     def set_deleted(self,game_id,version,deleted):
@@ -230,6 +243,10 @@ class MySQLRepository:
                     if not g['participation']:
                         identities={e.player_id:e for e in g['events'] if e.player_id and not e.is_voided}
                         g['participation']=[dict(player_id=e.player_id,player_name=e.player_name,jersey_number=e.jersey_number,played_ms=None,played_count=1,starter_count=0,designated_count=1) for e in identities.values()]
+                    q.execute('SELECT event_id,status FROM event_lineup_snapshots WHERE game_id=%s ORDER BY event_id',(g['game_id'],));snaps={r['event_id']:{**r,'members':[]} for r in q.fetchall()}
+                    q.execute('SELECT event_id,local_player_id,player_id FROM event_lineup_members WHERE game_id=%s ORDER BY event_id,local_player_id',(g['game_id'],))
+                    for member in q.fetchall():snaps[member['event_id']]['members'].append({k:member[k] for k in ('local_player_id','player_id')})
+                    g['lineups']={'version':1,'snapshots':list(snaps.values())}
                     public_games.extend(build_snapshot(revision,[],[g])['games'])
                     g.pop('events');g.pop('participation')
             c.rollback()

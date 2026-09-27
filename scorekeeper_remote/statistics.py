@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from scorekeeper_pipeline.validation import POINTS
+from .lineups import calculate_plus_minus
 
 STAT_KEYS = ('points','fgm','fga','threeMade','threeAttempts','ftm','fta','offensive','defensive','rebounds','assists','steals','blocks','turnovers','fouls')
 
@@ -27,6 +28,9 @@ def build_snapshot(revision, roster, games):
             if e.is_voided: continue
             add_event(home_stats if e.team_side=='HOME' else away_stats,e)
             if e.team_side=='HOME' and e.player_id in totals: add_event(totals[e.player_id]['stats'],e)
+        lineups=game.get('lineups') or game.get('upload',{}).get('lineups') or {}
+        pm=calculate_plus_minus(game['events'],lineups.get('snapshots',[]),game['participation'])
+        for pid,row in totals.items():row.update(plus_minus=pm[pid]['value'],plus_minus_status=pm[pid]['status'])
         details=game.get('upload',{}).get('game_details') or game.get('game_details') or {}
         output.append({'game_id':game['game_id'],'game_date':game['game_date'].isoformat(),'opponent':game['opponent'],'home_points':home_stats['points'],'away_points':away_stats['points'],'coverage':game['coverage'],'players':list(totals.values()),'home_stats':home_stats,'away_stats':away_stats,'category':details.get('category'),'duration_ms':details.get('duration_ms'),'stats_complete':details.get('stats_complete') is True})
     public_roster=[{k:p.get(k) for k in ('player_id','player_name','jersey_number','enrollment_year','status_override')} for p in roster if p['player_id']!='P_GUEST']
