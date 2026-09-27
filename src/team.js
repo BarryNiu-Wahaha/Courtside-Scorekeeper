@@ -4,6 +4,7 @@
   const ROSTER_COLUMNS=['player_id','player_name','jersey_number','enrollment_year','status_override'];
   const PART_COLUMNS=['game_id','game_date','opponent','revision','coverage','player_id','player_name','jersey_number','designated_count','starter_count','played_count','played_ms'];
   const fail=message=>{throw Error(message);};
+  function assertMutable(game){if(game.finalizedAt||game.remote)fail('This game is finalized or locked for upload. Download its results again to retrieve them.');}
   function newId(){if(typeof root.crypto.randomUUID==='function')return root.crypto.randomUUID();const bytes=root.crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;}
   function status(p,date=new Date()){
     if(p.statusOverride)return p.statusOverride;
@@ -69,6 +70,7 @@
     for(const game of state.games)refreshPregameRoster(game,state.roster,true);
   }
   function configure(game,squadIds,starterIds){
+    assertMutable(game);
     if(game.running||game.finished||game.squad&&game.started)fail('Squad selection is only available before play starts.');
     if(!Array.isArray(squadIds)||squadIds.length<5||squadIds.length>15||new Set(squadIds).size!==squadIds.length||squadIds.some(id=>!game.roster.some(p=>p.id===id)))fail('Choose between 5 and 15 different designated players.');
     checkFive(game,starterIds,squadIds);game.squad=[...squadIds];game.lineup=[...starterIds];game.starters=game.started?[]:[...starterIds];game.coverage=game.started?'partial':'complete';
@@ -81,6 +83,7 @@
   }
   function start(game,now){if(!game.squad)return;checkFive(game,game.lineup);game.timingAnchor=now;for(const id of game.lineup)game.participation[id].played=true;revision(game,now);}
   function substitute(game,ids,now=Date.now()){
+    assertMutable(game);
     if(game.running||game.finished)fail('Pause the game before substituting.');checkFive(game,ids);game.lineup=[...ids];revision(game,now);
   }
   function elapsedMs(game,now){const speed=game.clockSpeed||1;return Math.max(0,Math.round((game.deadline-game.timingAnchor)*speed)-Math.max(0,Math.round((game.deadline-now)*speed)));}
@@ -90,7 +93,7 @@
   }
   function exportEvent(game,event){return game.roster.find(p=>p.id===event.player_id)?.guest?{...event,player_id:GUEST,player_name:'Guest Player',jersey_number:0}:event;}
   function participationCSV(game,now=Date.now()){
-    if(!game.squad)fail('Participation is unavailable for this legacy game.');settle(game,now);revision(game,now);
+    if(!game.squad)fail('Participation is unavailable for this legacy game.');if(!game.finalizedAt&&!game.remote){settle(game,now);revision(game,now);}
     const rows=new Map();for(const id of game.squad){const p=game.roster.find(p=>p.id===id),key=p.guest?GUEST:id,part=game.participation[id];
       if(!rows.has(key))rows.set(key,{game_id:game.id,game_date:game.date,opponent:game.opponent,revision:game.revision,coverage:game.coverage,player_id:key,player_name:p.guest?'Guest Player':p.name,jersey_number:p.guest?0:p.number,designated_count:0,starter_count:0,played_count:0,played_ms:0});
       const row=rows.get(key);row.designated_count++;row.starter_count+=Number(game.starters.includes(id));row.played_count+=Number(part.played);row.played_ms+=part.playedMs;
@@ -108,6 +111,6 @@
     for(const id of game.squad){const p=game.participation[id];if(!p||!Number.isSafeInteger(p.playedMs)||p.playedMs<0||typeof p.played!=='boolean'||p.playedMs>0&&!p.played)fail('Invalid saved player minutes.');}
     if(game.running&&(!Number.isFinite(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs/(game.clockSpeed||1)-0.001))fail('Invalid saved timing anchor.');
   }
-  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,applySharedRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame,snapshotLineup,validateSnapshot};
+  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,applySharedRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame,snapshotLineup,validateSnapshot,assertMutable};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TeamEngine=api;
 })(globalThis);

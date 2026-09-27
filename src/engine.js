@@ -1,6 +1,23 @@
 (function (root) {
   'use strict';
   const T=typeof module!=='undefined'&&module.exports?require('./team.js'):root.TeamEngine;
+  const C=typeof module!=='undefined'&&module.exports?require('./corrections.js'):root.EventCorrections;
+  function assertMutable(game){T.assertMutable(game);}
+  function finalize(game,now=Date.now()){assertMutable(game);if(!game.finished||game.running)throw Error('End the game before exporting final results.');game.finalizedAt=new Date(now).toISOString();}
+  function correctEvents(game,changes,links=game.eventLinks||[],now=Date.now()){
+    assertMutable(game);const result=C.prepare(game,changes,links,TYPES),id=uuid();
+    const audit={id,at:new Date(now).toISOString(),changes:result.changes,linksBefore:game.eventLinks||[],linksAfter:result.links};
+    game.gameEvents=result.events;game.eventLinks=result.links;(game.correctionAudit??=[]).push(audit);
+    for(const e of game.gameEvents)if(!e.is_voided&&e.team_side==='HOME'&&game.participation?.[e.player_id])game.participation[e.player_id].played=true;
+    return id;
+  }
+  function restoreDeletion(game,id,now=Date.now()){
+    assertMutable(game);const tx=game.correctionAudit?.find(t=>t.id===id);if(!tx||tx.restored)throw Error('This deletion cannot be restored.');
+    const changes=tx.changes.filter(c=>!c.before.is_voided&&c.after.is_voided);
+    if(!changes.length||changes.some(c=>JSON.stringify(game.gameEvents.find(e=>e.event_id===c.eventId))!==JSON.stringify(c.after)))throw Error('An action changed after deletion; restore would overwrite a correction.');
+    const ids=new Set(changes.map(c=>c.eventId));const links=[...(game.eventLinks||[]),...tx.linksBefore.filter(l=>(ids.has(l.assistEventId)||ids.has(l.shotEventId))&&!(game.eventLinks||[]).some(x=>x.assistEventId===l.assistEventId&&x.shotEventId===l.shotEventId))];
+    correctEvents(game,changes.map(c=>({eventId:c.eventId,patch:{is_voided:false}})),links,now);tx.restored=true;
+  }
   const TYPES = Object.freeze({
     '2PT_MADE': 2, '2PT_MISSED': 0, '3PT_MADE': 3, '3PT_MISSED': 0,
     FT_MADE: 1, FT_MISSED: 0, OFF_REBOUND: 0, DEF_REBOUND: 0,
@@ -27,6 +44,7 @@
   }
   function remaining(game, now=Date.now()) { return Math.max(0,game.running ? Math.round((game.deadline-now)*(game.clockSpeed||1)) : game.remainingMs); }
   function setSpeed(game,speed,now=Date.now()){
+    assertMutable(game);
     if(![1,1.5,2,4].includes(speed))throw Error('Choose 1x, 1.5x, 2x or 4x speed.');
     const running=game.running;if(running)pause(game,now);game.clockSpeed=speed;if(running&&game.remainingMs>0)start(game,now);
   }
@@ -35,24 +53,28 @@
     return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   }
   function start(game, now=Date.now()) {
+    assertMutable(game);
     if (game.finished) throw Error('Reopen the game before starting the clock.');
     if (game.running) return;
     if (game.remainingMs <= 0) throw Error('Advance the period or adjust the clock first.');
     T.start(game,now);game.started=true; game.running=true; game.deadline=now+game.remainingMs/(game.clockSpeed||1);
   }
-  function pause(game, now=Date.now()) {T.settle(game,now);game.remainingMs=remaining(game,now); game.running=false; game.deadline=null;if(game.squad)game.timingAnchor=null;}
+  function pause(game, now=Date.now()) {assertMutable(game);T.settle(game,now);game.remainingMs=remaining(game,now); game.running=false; game.deadline=null;if(game.squad)game.timingAnchor=null;}
   function setClock(game, value) {
+    assertMutable(game);
     if(game.running) throw Error('Pause the clock before adjusting it.');
     if(!/^\d{1,2}:[0-5]\d$/.test(value)) throw Error('Enter a time such as 06:31 (00:00–99:59).');
     const [m,s]=value.split(':').map(Number); game.remainingMs=(m*60+s)*1000;
   }
   function nextPeriod(game) {
+    assertMutable(game);
     if(game.running) throw Error('Pause the clock before changing periods.');
     if(game.finished) throw Error('Reopen the game before changing periods.');
     game.period++; game.quarter=game.period<=4 ? String(game.period) : `OT${game.period-4}`;
     game.remainingMs=(game.period<=4?game.minutes:game.overtimeMinutes)*60000; game.deadline=null;
   }
   function recordEvent(game,type,player,side='HOME',now=Date.now()) {
+    assertMutable(game);
     if(!game.started || game.finished) throw Error('Start or reopen the game before recording stats.');
     if(!Object.hasOwn(TYPES,type) || !['HOME','AWAY'].includes(side)) throw Error('Invalid stat action.');
     if(side==='HOME' && (!player || !game.roster.some(p=>p.id===player.id))) throw Error('Select a player first.');
@@ -66,7 +88,7 @@
     if(p&&game.participation?.[p.id])game.participation[p.id].played=true;
     return event;
   }
-  function undo(game) {const e=game.gameEvents.findLast(e=>!e.is_voided); if(e)e.is_voided=true; return e||null;}
+  function undo(game) {assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(e)correctEvents(game,[{eventId:e.event_id,patch:{is_voided:true}}],(game.eventLinks||[]).filter(l=>l.assistEventId!==e.event_id&&l.shotEventId!==e.event_id));return e?game.gameEvents.find(x=>x.event_id===e.event_id):null;}
   function stats(game,side,playerId) {
     const s={points:0,fgm:0,fga:0,twoMade:0,twoAttempts:0,threeMade:0,threeAttempts:0,ftm:0,fta:0,offensive:0,defensive:0,rebounds:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0};
     const mapping={OFF_REBOUND:'offensive',DEF_REBOUND:'defensive',ASSIST:'assists',STEAL:'steals',BLOCK:'blocks',TURNOVER:'turnovers',FOUL:'fouls'};
@@ -97,6 +119,9 @@
     for(const g of state.games){
       check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);
       T.validateGame(g);
+      check(g.finalizedAt===undefined||(g.finished&&!g.running&&typeof g.finalizedAt==='string'&&Number.isFinite(Date.parse(g.finalizedAt))));
+      if(g.eventLinks!==undefined)C.validateLinks(g.gameEvents,g.eventLinks);
+      if(g.correctionAudit!==undefined)check(Array.isArray(g.correctionAudit)&&g.correctionAudit.every(t=>t&&typeof t.id==='string'&&Array.isArray(t.changes)&&Array.isArray(t.linksBefore)&&Array.isArray(t.linksAfter)&&t.changes.every(c=>g.gameEvents.some(e=>e.event_id===c.eventId)&&c.before?.event_id===c.eventId&&c.after?.event_id===c.eventId)));
       check(g.clockSpeed===undefined||[1,1.5,2,4].includes(g.clockSpeed));
       check(typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Number.isFinite(Date.parse(g.date))&&new Date(g.date).toISOString().slice(0,10)===g.date&&str(g.opponent));
       check(g.category==null||['official','friendly'].includes(g.category));
@@ -122,6 +147,6 @@
     for(const game of snapshot.games)if(game.running)pause(game,now);
     return snapshot;
   }
-  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,setSpeed,nextPeriod,recordEvent,undo,stats,csv,validateState,backup};
+  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,setSpeed,nextPeriod,recordEvent,undo,stats,csv,validateState,backup,assertMutable,finalize,correctEvents,restoreDeletion};
   if(typeof module!=='undefined'&&module.exports)module.exports=api; else root.ScoreEngine=api;
 })(globalThis);
