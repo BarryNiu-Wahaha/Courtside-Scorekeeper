@@ -48,7 +48,7 @@
   function renderClock(){
     const g=current();if(!g)return;
     if(g.running&&E.remaining(g)<=0){E.pause(g);save();toast('Period complete. Advance when you are ready.');}
-    $('clock-display').textContent=E.clock(g);
+    $('clock-display').textContent=E.clock(g);$('clock-speed').value=String(g.clockSpeed||1);$('clock-speed').disabled=!!(g.finished||g.finalizedAt||g.remote);
     $('period-label').textContent=periodText(g);
     $('clock-status').textContent=g.finished?'FINAL':g.running?'LIVE':g.started?'PAUSED':'READY';
     $('clock-status').classList.toggle('running',g.running);
@@ -77,17 +77,17 @@
     $('selected-player').innerHTML=`<span class="selected-avatar">${side==='AWAY'?'A':player?player.number:'—'}</span><div><div class="selected-name">${html(name)}</div><div class="selected-description">${side==='AWAY'?'Team-level recording':player?'Recording for our team':'Select a player from the roster'}</div></div><span class="selection-tag">${side==='AWAY'?'OPPONENT':'OUR TEAM'}</span>`;
     $('home-side').classList.toggle('active',side==='HOME');$('away-side').classList.toggle('active',side==='AWAY');$('home-side').setAttribute('aria-pressed',side==='HOME');$('away-side').setAttribute('aria-pressed',side==='AWAY');
     document.querySelectorAll('[data-stat]').forEach(b=>b.disabled=!g||!g.started||g.finished||(side==='HOME'&&!player));
-    $('recording-hint').textContent=!g?'Create a game to start recording.':g.finished?'Game complete. Reopen it to make corrections.':!g.started?'Start the game clock to enable recording.':side==='HOME'&&!player?'Select a player, then tap a stat.':'Each tap records one play at the displayed game time.';
+    $('recording-hint').textContent=!g?'Create a game to start recording.':g.finished?'Game complete. Select a recorded action to correct it before export.':!g.started?'Start the game clock to enable recording.':side==='HOME'&&!player?'Select a player, then tap a stat.':'Each tap records one play at the displayed game time.';
     const events=g?.gameEvents||[];
     $('event-count').textContent=events.length;
     $('event-list').innerHTML=[...events].reverse().map(e=>{
       const category=e.event_type.endsWith('_MADE')?'made':e.event_type.endsWith('_MISSED')?'missed':['FOUL','TURNOVER'].includes(e.event_type)?'danger':'';
       const icon=e.points_value?`+${e.points_value}`:category==='missed'?'×':{OFF_REBOUND:'OR',DEF_REBOUND:'DR',ASSIST:'A',STEAL:'S',BLOCK:'B',TURNOVER:'TO',FOUL:'F'}[e.event_type]||'•';
-      return `<div class="event-item ${e.is_voided?'voided':''}"><span class="event-icon ${category}">${icon}</span><div class="event-body"><strong>${html(labels[e.event_type])}</strong><small>${e.team_side==='HOME'?`#${e.jersey_number} ${html(e.player_name)}`:`${html(e.opponent)} · Opponent`}${e.is_voided?' · VOIDED':''}</small></div><div class="event-time">${html(e.game_clock)}<small>${e.quarter.startsWith('OT')?html(e.quarter):'Q'+html(e.quarter)} · #${e.event_id}</small></div></div>`;
+      return `<div class="event-item" data-event="${e.event_id}" role="button" tabindex="0" aria-label="Correct play ${e.event_id}" data-void="${e.is_voided}" class-unused="${e.is_voided?'voided':''}"><span class="event-icon ${category}">${icon}</span><div class="event-body"><strong>${html(labels[e.event_type])}</strong><small>${e.team_side==='HOME'?`#${e.jersey_number} ${html(e.player_name)}`:`${html(e.opponent)} · Opponent`}${e.is_voided?' · VOIDED':''}</small></div><div class="event-time">${html(e.game_clock)}<small>${e.quarter.startsWith('OT')?html(e.quarter):'Q'+html(e.quarter)} · #${e.event_id}</small></div></div>`;
     }).join('')||'<div class="empty-state"><span class="empty-icon">◎</span>Your game starts here.<br>Record a play to see it in the feed.</div>';
-    $('undo-button').disabled=!events.some(e=>!e.is_voided)||g?.finished;
-    $('export-button').disabled=!g;$('finish-button').disabled=!g;
-    $('finish-button').textContent=g?.finished?'Reopen game':'End game';
+    $('undo-button').disabled=!events.some(e=>!e.is_voided)||!!g?.finalizedAt||!!g?.remote;
+    $('export-button').disabled=!g;$('finish-button').disabled=!g||!!g.finalizedAt||!!g.remote;
+    $('finish-button').textContent=g?.finalizedAt?'Exported · locked':g?.finished?'Reopen game':'End game';
     for(const id of ['clock-button','adjust-button','period-button'])$(id).disabled=!g;
     renderClock();renderBox();renderRemote();
   }
@@ -96,6 +96,12 @@
     const cells=s=>`<td>${s.points}</td><td>${s.fgm}/${s.fga}</td><td>${s.threeMade}/${s.threeAttempts}</td><td>${s.ftm}/${s.fta}</td><td>${s.offensive}</td><td>${s.defensive}</td><td>${s.rebounds}</td><td>${s.assists}</td><td>${s.steals}</td><td>${s.blocks}</td><td>${s.turnovers}</td><td>${s.fouls}</td>`;
     const players=g.roster.filter(p=>!g.squad||g.squad.includes(p.id)||g.gameEvents.some(e=>e.player_id===p.id));
     $('box-table').innerHTML=`<table><thead><tr><th>PLAYER</th><th>MIN</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>OREB</th><th>DREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th></tr></thead><tbody>${players.map(p=>`<tr><td>#${p.number} ${html(p.name)}${g.starters?.includes(p.id)?' (starter)':''}</td><td>${g.participation?.[p.id]?T.minutes(g,p.id,Date.now()).toFixed(2):'—'}</td>${cells(E.stats(g,'HOME',p.id))}</tr>`).join('')}</tbody><tfoot><tr><td>Our team</td><td>—</td>${cells(E.stats(g,'HOME'))}</tr><tr><td>${html(g.opponent)}</td><td>—</td>${cells(E.stats(g,'AWAY'))}</tr></tfoot></table>`;
+
+    if(g.finished){
+      const format=(v,d=1)=>v==null?'—':v.toFixed(d);
+      $('box-table').insertAdjacentHTML('beforeend',`<h3>Player analytics</h3><p class="form-note">— means no attempts/turnovers, or incomplete historical lineup data for +/−. TS% uses a 0.44 free-throw estimate.</p><button id="player-export-button" class="button subtle">Export player statistics</button><table><thead><tr><th>PLAYER</th><th>+/−</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>AST/TO</th></tr></thead><tbody>${players.map(p=>{const a=PlayerAnalytics.player(g,p.id);return `<tr><td>${html(p.name)}</td><td title="${a.plusMinusStatus}">${a.plusMinus==null?'—':a.plusMinus>0?'+'+a.plusMinus:a.plusMinus}</td>${['fgPct','threePct','ftPct','efgPct','tsPct','astTo'].map(k=>`<td>${format(a[k],k==='astTo'?2:1)}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`);
+      $('player-export-button').onclick=()=>exportResults('player_statistics',g=>PlayerAnalytics.csv(g));
+    }
   }
   $('roster-list').addEventListener('click',event=>{const b=event.target.closest('[data-player]');if(b){selectedId=b.dataset.player;side='HOME';render();}});
   $('home-side').addEventListener('click',()=>{side='HOME';render();});$('away-side').addEventListener('click',()=>{side='AWAY';render();});
@@ -108,6 +114,36 @@
   $('clock-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{E.setClock(current(),$('clock-input').value.trim());$('clock-dialog').close();toast('Clock updated.');});});
   $('period-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;confirm('Advance the period?',`The clock will reset to ${g.period<4?g.minutes:g.overtimeMinutes}:00 and stay paused. All recorded plays will be kept.`,()=>run(()=>E.nextPeriod(g)));});
   $('undo-button').addEventListener('click',()=>run(()=>{const e=E.undo(current());if(e)toast(`Play #${e.event_id} voided. Stats updated.`);}));
+
+  function exportResults(kind,prepare){
+    const g=current();if(!g)return;if(!g.finished){toast('End the game before exporting final results.',true);return;}
+    const action=()=>{try{ResultExport.exportGame(g,()=>prepare(g),()=>{if(saveBlocked)throw Error('Restore browser saving before finalizing.');localStorage.setItem(KEY,JSON.stringify(state));},content=>download(content,`${g.id}_${kind}.csv`,'text/csv;charset=utf-8'));render();toast('Results exported. This game is locked; you can download its results again.');}catch(error){toast(error.message,true);}};
+    if(g.finalizedAt||g.remote)action();else confirm('Finalize and export?','Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',action);
+  }
+  $('clock-speed').addEventListener('change',()=>run(()=>E.setSpeed(current(),Number($('clock-speed').value))));
+  let correctionId=null;
+  function editEvent(id){
+    const g=current();E.assertMutable(g);if(g.running)E.pause(g);save();render();const e=g.gameEvents.find(x=>x.event_id===id);if(!e)return;correctionId=id;
+    $('correction-time').textContent=`Play #${id} · ${e.quarter} · ${e.game_clock} (time stays unchanged)`;
+    $('correction-side').value=e.team_side;$('correction-player').innerHTML=g.roster.filter(p=>!g.squad||g.squad.includes(p.id)).map(p=>`<option value="${html(p.id)}">#${p.number} ${html(p.name)}</option>`).join('');$('correction-player').value=e.player_id||g.roster[0]?.id;
+    $('correction-type').innerHTML=Object.keys(E.TYPES).map(t=>`<option value="${t}">${html(labels[t])}</option>`).join('');$('correction-type').value=e.event_type;$('correction-delete').checked=e.is_voided;$('correction-unlink').checked=false;$('correction-error').textContent='';
+    const linked=new Set((g.eventLinks||[]).flatMap(l=>l.assistEventId===id?[l.shotEventId]:l.shotEventId===id?[l.assistEventId]:[]));
+    $('correction-related').innerHTML=g.gameEvents.filter(x=>x.event_id!==id&&!x.is_voided&&(Math.abs(x.event_id-id)<=5||linked.has(x.event_id))).map(x=>`<div class="related-row"><span>#${x.event_id} ${html(labels[x.event_type])} · ${html(x.player_name||g.opponent)}${linked.has(x.event_id)?' · linked':''}</span><label><input type="checkbox" data-related-delete="${x.event_id}"> Delete</label>${['ASSIST','2PT_MADE','3PT_MADE'].includes(x.event_type)?`<label><input type="checkbox" data-related-link="${x.event_id}" ${linked.has(x.event_id)?'checked':''}> Link</label>`:''}</div>`).join('');
+    const tx=g.correctionAudit?.findLast(t=>!t.restored&&t.changes.some(c=>c.eventId===id&&!c.before.is_voided&&c.after.is_voided));$('correction-restore').hidden=!e.is_voided||!tx;$('correction-restore').dataset.transaction=tx?.id||'';
+    $('correction-player').disabled=e.team_side==='AWAY';open('correction-dialog');
+  }
+  $('correction-side').addEventListener('change',()=>{$('correction-player').disabled=$('correction-side').value==='AWAY';});
+  $('event-list').addEventListener('click',e=>{const item=e.target.closest('[data-event]');if(item)run(()=>editEvent(Number(item.dataset.event)));});
+  $('event-list').addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)&&e.target.matches('[data-event]')){e.preventDefault();run(()=>editEvent(Number(e.target.dataset.event)));}});
+  $('correction-form').addEventListener('submit',event=>{event.preventDefault();try{
+    const g=current(),patch={event_type:$('correction-type').value,team_side:$('correction-side').value,player_id:$('correction-player').value,is_voided:$('correction-delete').checked};
+    const changes=[{eventId:correctionId,patch},...Array.from(document.querySelectorAll('[data-related-delete]:checked'),el=>({eventId:Number(el.dataset.relatedDelete),patch:{is_voided:true}}))];
+    let links=(g.eventLinks||[]).filter(l=>l.assistEventId!==correctionId&&l.shotEventId!==correctionId);
+    if(!$('correction-unlink').checked)for(const el of document.querySelectorAll('[data-related-link]:checked')){const other=Number(el.dataset.relatedLink);links.push(patch.event_type==='ASSIST'?{assistEventId:correctionId,shotEventId:other}:{assistEventId:other,shotEventId:correctionId});}
+    const deleted=new Set(changes.filter(c=>c.patch.is_voided).map(c=>c.eventId));links=links.filter(l=>!deleted.has(l.assistEventId)&&!deleted.has(l.shotEventId));
+    E.correctEvents(g,changes,links);save();render();$('correction-dialog').close();toast('Correction saved. Scores and statistics recalculated.');
+  }catch(error){$('correction-error').textContent=error.message;}});
+  $('correction-restore').addEventListener('click',()=>{try{E.restoreDeletion(current(),$('correction-restore').dataset.transaction);save();render();$('correction-dialog').close();toast('Deletion group restored.');}catch(error){$('correction-error').textContent=error.message;}});
   function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';$('setup-category').value='friendly';open('setup-dialog');}
   $('new-game-button').addEventListener('click',setup);
   $('setup-form').addEventListener('submit',async e=>{e.preventDefault();
@@ -120,12 +156,12 @@
   });});
   $('finish-button').addEventListener('click',()=>{
     const g=current();if(!g)return;
-    if(g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
+    if(g.finalizedAt||g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
     if(g.finished){run(()=>{g.finished=false;toast('Game reopened. The clock is paused.');});return;}
     confirm('Finish this game?','The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',()=>run(()=>{E.pause(g);g.finished=true;toast('Final whistle. Your event log is ready to export.');}));
   });
   function download(text,name,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-  $('export-button').addEventListener('click',()=>{const g=current();if(g){download(E.csv(g),`${g.id}_events.csv`,'text/csv;charset=utf-8');toast(`Exported ${g.gameEvents.length} events, including voided plays.`);}});
+  $('export-button').addEventListener('click',()=>exportResults('events',g=>E.csv(g)));
   $('backup-button').addEventListener('click',()=>download(JSON.stringify(E.backup(state),null,2),`courtside-backup-${new Date().toISOString().slice(0,10)}.json`,'application/json'));
   $('recovery-button').addEventListener('click',()=>download(rawSaved||'',`courtside-original-recovery-${new Date().toISOString().slice(0,10)}.txt`,'text/plain;charset=utf-8'));
   $('restore-button').addEventListener('click',()=>$('restore-file').click());
@@ -217,7 +253,7 @@
       confirm('Apply roster CSV?',`${added.length} additions and ${updated.length} updates. Players absent from this file will be retained. ${rosterUpdateNote}\n\n${preview||'No changes.'}`,()=>run(()=>{applyRoster(merged);toast('Roster imported. '+rosterUpdateNote);}));
     }catch(e){toast(e.message,true);}finally{$('roster-file').value='';}
   });
-  $('participation-export-button').addEventListener('click',()=>run(()=>{const g=current();download(T.participationCSV(g,Date.now()),`${g.id}_participation.csv`,'text/csv;charset=utf-8');toast('Participation exported. Guests are combined as Guest Player.');}));
+  $('participation-export-button').addEventListener('click',()=>exportResults('participation',g=>T.participationCSV(g,Date.now())));
   $('history-button').addEventListener('click',()=>{
     $('history-list').innerHTML=[...state.games].reverse().map(g=>`<div class="history-card"><div><strong>vs ${html(g.opponent)}</strong><small>${html(g.date)} · ${g.finished?'Final':g.started?'In progress':'Ready'}<br>Our team ${E.stats(g,'HOME').points} – ${E.stats(g,'AWAY').points} Opponent · ${g.gameEvents.length} events</small></div><button class="button subtle" data-game="${html(g.id)}">Open</button></div>`).join('')||'<div class="empty-state">Your games will appear here.</div>';open('history-dialog');
   });
