@@ -55,6 +55,8 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
 @media(hover:none){.dark:hover{background:var(--ink)}.subtle:hover{background:#fff}.made:hover{background:#e9f6ef}.missed:hover{background:#fff5e6}.neutral:hover{background:#edf3ff}.danger:hover{background:#fdf0f1}.player-card:hover{background:#fff}.player-card.selected:hover{background:#e9f0ff}}
 @media(max-width:600px){.app-shell{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}.selected-player{gap:8px}.selected-player>div{min-width:0}.selection-tag{padding:5px;font-size:7px}.action-confirmation{font-size:11px}dialog{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}button:active:not(:disabled){transform:none}}
+
+.speed-control{display:inline-flex;align-items:center;vertical-align:middle;font-size:0;margin:4px 5px 0 0}.speed-control select{width:58px;min-height:32px;padding:4px;font-size:12px}.clock-panel>.text-button{vertical-align:middle}.event-item[role=button]{cursor:pointer}.event-item[role=button]:focus-visible{outline:2px solid #2563eb}.event-item[data-void=true]{opacity:.55}#correction-dialog select{width:100%;min-height:40px}#correction-dialog label{display:block;margin:10px 0}.related-row{padding:8px 0;border-bottom:1px solid #ddd}.related-row label{display:inline-block!important;margin-right:16px!important}#correction-error{color:#b42318}
 </style>
 </head>
 <body>
@@ -70,7 +72,7 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
       <div class="page-heading"><div><div class="eyebrow">TEAM WORKSPACE</div><h1>Game day, under control.</h1></div><div id="game-meta" class="game-meta">Set up your game to get started.</div></div>
       <section class="scoreboard" aria-label="Scoreboard and game clock">
         <div class="team home-team"><span class="team-badge">H</span><div class="team-title">OUR TEAM<small>Team basketball</small></div><strong id="home-score" class="score">0</strong></div>
-        <div class="clock-panel"><div class="clock-caption"><span id="period-label">QUARTER 1</span><span id="clock-status" class="pill">READY</span></div><div id="clock-display" class="clock-display" role="timer" aria-label="Remaining game time">10:00</div><div class="clock-actions"><button id="clock-button" class="button clock-start">▶ Start game</button><button id="adjust-button" class="button clock-edit" aria-label="Adjust game clock">Adjust</button></div><button id="period-button" class="text-button">Next quarter →</button></div>
+        <div class="clock-panel"><div class="clock-caption"><span id="period-label">QUARTER 1</span><span id="clock-status" class="pill">READY</span></div><div id="clock-display" class="clock-display" role="timer" aria-label="Remaining game time">10:00</div><div class="clock-actions"><button id="clock-button" class="button clock-start">▶ Start game</button><button id="adjust-button" class="button clock-edit" aria-label="Adjust game clock">Adjust</button></div><label class="speed-control">Clock speed <select id="clock-speed"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="4">4×</option></select></label><button id="period-button" class="text-button">Next quarter →</button></div>
         <div class="team away-team"><strong id="away-score" class="score">0</strong><div class="team-title"><span id="opponent-name">OPPONENT</span><small>Opposing team</small></div><span class="team-badge away">A</span></div>
       </section>
       <div class="workspace-bar"><div class="tabs" role="tablist" aria-label="Game views"><button id="live-tab" class="tab active" role="tab" aria-selected="true" aria-controls="live-view">Live tracker</button><button id="box-tab" class="tab" role="tab" aria-selected="false" aria-controls="box-view">Box score</button></div><div class="workspace-tools"><button id="upload-button" class="button subtle" hidden>Upload finished game</button><button id="finish-button" class="text-button">End game</button><button id="export-button" class="button export">↓ <span>Export Game Event Log</span></button></div></div>
@@ -101,12 +103,14 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
   <input id="roster-file" type="file" accept=".csv,text/csv" hidden>
   <input id="restore-file" type="file" accept=".json,application/json" hidden>
   <dialog id="upload-dialog"><form id="upload-form"><h2>Upload finished game</h2><p id="upload-status" class="dialog-description" role="status"></p><label class="coverage-choice"><input id="upload-complete" type="checkbox"> Full statistics recorded for both teams (including misses, rebounds and turnovers)</label><p class="form-note">Enables estimated pace and efficiency. Leave unchecked if recording was incomplete.</p><label>Scorekeeper PIN<input id="upload-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" required></label><div class="actions"><button id="upload-submit" type="submit" class="button dark">Upload game</button><button type="button" class="button subtle" data-close>Close</button></div></form></dialog>
+  <dialog id="correction-dialog"><form id="correction-form"><div class="dialog-heading"><h2>Correct statistical action</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p id="correction-time" class="dialog-description"></p><label>Team<select id="correction-side"><option value="HOME">Our team</option><option value="AWAY">Opponent</option></select></label><label>Player<select id="correction-player"></select></label><label>Action<select id="correction-type"></select></label><label><input type="checkbox" id="correction-delete"> Delete this action</label><h3>Related actions</h3><p class="form-note">Select related actions to delete together, or link an assist to this made basket. Nearby events are suggestions only. Resolve other details by opening their event.</p><div id="correction-related"></div><label><input type="checkbox" id="correction-unlink"> Remove existing links involving this action</label><p id="correction-error" role="alert"></p><div class="actions"><button class="button dark" type="submit">Save correction</button><button id="correction-restore" class="button subtle" type="button">Restore deletion group</button><button class="button subtle" type="button" data-close>Cancel</button></div></form></dialog>
   <script>(function(root){
   'use strict';
   const GUEST='P_GUEST';
   const ROSTER_COLUMNS=['player_id','player_name','jersey_number','enrollment_year','status_override'];
   const PART_COLUMNS=['game_id','game_date','opponent','revision','coverage','player_id','player_name','jersey_number','designated_count','starter_count','played_count','played_ms'];
   const fail=message=>{throw Error(message);};
+  function assertMutable(game){if(game.finalizedAt||game.remote)fail('This game is finalized or locked for upload. Download its results again to retrieve them.');}
   function newId(){if(typeof root.crypto.randomUUID==='function')return root.crypto.randomUUID();const bytes=root.crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;}
   function status(p,date=new Date()){
     if(p.statusOverride)return p.statusOverride;
@@ -172,6 +176,7 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     for(const game of state.games)refreshPregameRoster(game,state.roster,true);
   }
   function configure(game,squadIds,starterIds){
+    assertMutable(game);
     if(game.running||game.finished||game.squad&&game.started)fail('Squad selection is only available before play starts.');
     if(!Array.isArray(squadIds)||squadIds.length<5||squadIds.length>15||new Set(squadIds).size!==squadIds.length||squadIds.some(id=>!game.roster.some(p=>p.id===id)))fail('Choose between 5 and 15 different designated players.');
     checkFive(game,starterIds,squadIds);game.squad=[...squadIds];game.lineup=[...starterIds];game.starters=game.started?[]:[...starterIds];game.coverage=game.started?'partial':'complete';
@@ -179,24 +184,30 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
   }
   function settle(game,now=Date.now()){
     if(!game.squad||!game.running||game.timingAnchor==null)return;
-    const end=Math.min(now,game.deadline),elapsed=Math.max(0,end-game.timingAnchor);
+    const end=Math.min(now,game.deadline),elapsed=elapsedMs(game,end);
     if(elapsed){for(const id of game.lineup){game.participation[id].playedMs+=elapsed;game.participation[id].played=true;}game.timingAnchor=end;revision(game,now);}
   }
   function start(game,now){if(!game.squad)return;checkFive(game,game.lineup);game.timingAnchor=now;for(const id of game.lineup)game.participation[id].played=true;revision(game,now);}
   function substitute(game,ids,now=Date.now()){
+    assertMutable(game);
     if(game.running||game.finished)fail('Pause the game before substituting.');checkFive(game,ids);game.lineup=[...ids];revision(game,now);
   }
+  function elapsedMs(game,now){const speed=game.clockSpeed||1;return Math.max(0,Math.round((game.deadline-game.timingAnchor)*speed)-Math.max(0,Math.round((game.deadline-now)*speed)));}
   function minutes(game,id,now=Date.now()){
     if(!game.participation?.[id])return 0;let ms=game.participation[id].playedMs;
-    if(game.running&&game.lineup.includes(id)&&game.timingAnchor!=null)ms+=Math.max(0,Math.min(now,game.deadline)-game.timingAnchor);return ms/60000;
+    if(game.running&&game.lineup.includes(id)&&game.timingAnchor!=null)ms+=elapsedMs(game,Math.min(now,game.deadline));return ms/60000;
   }
   function exportEvent(game,event){return game.roster.find(p=>p.id===event.player_id)?.guest?{...event,player_id:GUEST,player_name:'Guest Player',jersey_number:0}:event;}
   function participationCSV(game,now=Date.now()){
-    if(!game.squad)fail('Participation is unavailable for this legacy game.');settle(game,now);revision(game,now);
+    if(!game.squad)fail('Participation is unavailable for this legacy game.');if(!game.finalizedAt&&!game.remote){settle(game,now);revision(game,now);}
     const rows=new Map();for(const id of game.squad){const p=game.roster.find(p=>p.id===id),key=p.guest?GUEST:id,part=game.participation[id];
       if(!rows.has(key))rows.set(key,{game_id:game.id,game_date:game.date,opponent:game.opponent,revision:game.revision,coverage:game.coverage,player_id:key,player_name:p.guest?'Guest Player':p.name,jersey_number:p.guest?0:p.number,designated_count:0,starter_count:0,played_count:0,played_ms:0});
       const row=rows.get(key);row.designated_count++;row.starter_count+=Number(game.starters.includes(id));row.played_count+=Number(part.played);row.played_ms+=part.playedMs;
     }return encode(PART_COLUMNS,[...rows.values()]);
+  }
+  function snapshotLineup(game){return {status:game.lineup?.length===5?'complete':game.lineup?.length?'partial':'unknown',playerIds:[...(game.lineup||[])]};}
+  function validateSnapshot(game,snap){
+    if(!snap||!['complete','partial','unknown'].includes(snap.status)||!Array.isArray(snap.playerIds)||new Set(snap.playerIds).size!==snap.playerIds.length||snap.playerIds.some(id=>!(game.squad||game.roster.map(p=>p.id)).includes(id))||snap.playerIds.length>5||(snap.status==='complete'&&snap.playerIds.length!==5)||(snap.status==='unknown'&&snap.playerIds.length))fail('Invalid event lineup snapshot.');
   }
   function validateGame(game){
     if(game.squad===undefined)return;
@@ -204,15 +215,58 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     checkFive(game,game.lineup);if(!['complete','partial'].includes(game.coverage)||!Array.isArray(game.starters)||(game.coverage==='complete'?game.starters.length!==5:game.starters.length!==0)||new Set(game.starters).size!==game.starters.length||game.starters.some(id=>!game.squad.includes(id)))fail('Invalid saved starters or participation coverage.');
     if(!Number.isSafeInteger(game.revision)||game.revision<1||!game.participation||Object.keys(game.participation).length!==game.squad.length)fail('Invalid saved participation.');
     for(const id of game.squad){const p=game.participation[id];if(!p||!Number.isSafeInteger(p.playedMs)||p.playedMs<0||typeof p.played!=='boolean'||p.playedMs>0&&!p.played)fail('Invalid saved player minutes.');}
-    if(game.running&&(!Number.isSafeInteger(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs))fail('Invalid saved timing anchor.');
+    if(game.running&&(!Number.isFinite(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs/(game.clockSpeed||1)-0.001))fail('Invalid saved timing anchor.');
   }
-  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,applySharedRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame};
+  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,applySharedRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame,snapshotLineup,validateSnapshot,assertMutable};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TeamEngine=api;
+})(globalThis);
+
+(function(root){
+  'use strict';
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  function validateLinks(events,links){
+    if(!Array.isArray(links))throw Error('Invalid related actions.');
+    const used=new Set();
+    for(const l of links){const a=events.find(e=>e.event_id===l.assistEventId),s=events.find(e=>e.event_id===l.shotEventId);
+      if(!a||!s||a.is_voided||s.is_voided||a.event_type!=='ASSIST'||!['2PT_MADE','3PT_MADE'].includes(s.event_type)||a.team_side!==s.team_side||(a.team_side==='HOME'&&a.player_id===s.player_id)||used.has(a.event_id)||used.has(s.event_id))throw Error('Resolve linked assists: keep a valid made basket, or remove/unlink the assist.');
+      used.add(a.event_id);used.add(s.event_id);
+    }
+  }
+  function prepare(game,changes,links,types){
+    if(!Array.isArray(changes))throw Error('Invalid corrections.');
+    const events=clone(game.gameEvents),seen=new Set(),audit=[];
+    for(const c of changes){const e=events.find(e=>e.event_id===c.eventId);if(!e||seen.has(c.eventId)||!c.patch||Object.keys(c.patch).some(k=>!['event_type','team_side','player_id','is_voided'].includes(k)))throw Error('Invalid correction fields.');seen.add(c.eventId);const before=clone(e);Object.assign(e,c.patch);
+      if(!Object.hasOwn(types,e.event_type)||!['HOME','AWAY'].includes(e.team_side)||typeof e.is_voided!=='boolean')throw Error('Invalid statistical action.');
+      e.points_value=types[e.event_type];
+      if(e.team_side==='AWAY'){e.player_id='';e.player_name='';e.jersey_number='';}
+      else {const p=game.roster.find(p=>p.id===e.player_id&&(!game.squad||game.squad.includes(p.id)));if(!p)throw Error('Choose a player from this game squad.');e.player_name=p.name;e.jersey_number=p.number;}
+      audit.push({eventId:e.event_id,before,after:clone(e)});
+    }
+    validateLinks(events,links);return {events,links:clone(links),changes:audit};
+  }
+  const api={prepare,validateLinks};if(typeof module==='object'&&module.exports)module.exports=api;else root.EventCorrections=api;
 })(globalThis);
 
 (function (root) {
   'use strict';
   const T=typeof module!=='undefined'&&module.exports?require('./team.js'):root.TeamEngine;
+  const C=typeof module!=='undefined'&&module.exports?require('./corrections.js'):root.EventCorrections;
+  function assertMutable(game){T.assertMutable(game);}
+  function finalize(game,now=Date.now()){assertMutable(game);if(!game.finished||game.running)throw Error('End the game before exporting final results.');game.finalizedAt=new Date(now).toISOString();}
+  function correctEvents(game,changes,links=game.eventLinks||[],now=Date.now()){
+    assertMutable(game);const result=C.prepare(game,changes,links,TYPES),id=uuid();
+    const audit={id,at:new Date(now).toISOString(),changes:result.changes,linksBefore:game.eventLinks||[],linksAfter:result.links};
+    game.gameEvents=result.events;game.eventLinks=result.links;(game.correctionAudit??=[]).push(audit);
+    for(const e of game.gameEvents)if(!e.is_voided&&e.team_side==='HOME'&&game.participation?.[e.player_id])game.participation[e.player_id].played=true;
+    return id;
+  }
+  function restoreDeletion(game,id,now=Date.now()){
+    assertMutable(game);const tx=game.correctionAudit?.find(t=>t.id===id);if(!tx||tx.restored)throw Error('This deletion cannot be restored.');
+    const changes=tx.changes.filter(c=>!c.before.is_voided&&c.after.is_voided);
+    if(!changes.length||changes.some(c=>JSON.stringify(game.gameEvents.find(e=>e.event_id===c.eventId))!==JSON.stringify(c.after)))throw Error('An action changed after deletion; restore would overwrite a correction.');
+    const ids=new Set(changes.map(c=>c.eventId));const links=[...(game.eventLinks||[]),...tx.linksBefore.filter(l=>(ids.has(l.assistEventId)||ids.has(l.shotEventId))&&!(game.eventLinks||[]).some(x=>x.assistEventId===l.assistEventId&&x.shotEventId===l.shotEventId))];
+    correctEvents(game,changes.map(c=>({eventId:c.eventId,patch:{is_voided:false}})),links,now);tx.restored=true;
+  }
   const TYPES = Object.freeze({
     '2PT_MADE': 2, '2PT_MISSED': 0, '3PT_MADE': 3, '3PT_MISSED': 0,
     FT_MADE: 1, FT_MISSED: 0, OFF_REBOUND: 0, DEF_REBOUND: 0,
@@ -234,33 +288,42 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     if (typeof opponent !== 'string' || !opponent.trim()) throw Error('Enter an opponent name.');
     if (![minutes,overtimeMinutes].every(n => Number.isInteger(n) && n >= 1 && n <= 99)) throw Error('Period lengths must be whole minutes from 1 to 99.');
     return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes, category,
-      quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,
+      quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,clockSpeed:1,
       roster:roster.map(p=>({...p})), gameEvents:[]};
   }
-  function remaining(game, now=Date.now()) { return Math.max(0,game.running ? game.deadline-now : game.remainingMs); }
+  function remaining(game, now=Date.now()) { return Math.max(0,game.running ? Math.round((game.deadline-now)*(game.clockSpeed||1)) : game.remainingMs); }
+  function setSpeed(game,speed,now=Date.now()){
+    assertMutable(game);
+    if(![1,1.5,2,4].includes(speed))throw Error('Choose 1x, 1.5x, 2x or 4x speed.');
+    const running=game.running;if(running)pause(game,now);game.clockSpeed=speed;if(running&&game.remainingMs>0)start(game,now);
+  }
   function clock(game, now=Date.now()) {
     const seconds=Math.ceil(remaining(game,now)/1000);
     return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   }
   function start(game, now=Date.now()) {
+    assertMutable(game);
     if (game.finished) throw Error('Reopen the game before starting the clock.');
     if (game.running) return;
     if (game.remainingMs <= 0) throw Error('Advance the period or adjust the clock first.');
-    T.start(game,now);game.started=true; game.running=true; game.deadline=now+game.remainingMs;
+    T.start(game,now);game.started=true; game.running=true; game.deadline=now+game.remainingMs/(game.clockSpeed||1);
   }
-  function pause(game, now=Date.now()) {T.settle(game,now);game.remainingMs=remaining(game,now); game.running=false; game.deadline=null;if(game.squad)game.timingAnchor=null;}
+  function pause(game, now=Date.now()) {assertMutable(game);T.settle(game,now);game.remainingMs=remaining(game,now); game.running=false; game.deadline=null;if(game.squad)game.timingAnchor=null;}
   function setClock(game, value) {
+    assertMutable(game);
     if(game.running) throw Error('Pause the clock before adjusting it.');
     if(!/^\d{1,2}:[0-5]\d$/.test(value)) throw Error('Enter a time such as 06:31 (00:00–99:59).');
     const [m,s]=value.split(':').map(Number); game.remainingMs=(m*60+s)*1000;
   }
   function nextPeriod(game) {
+    assertMutable(game);
     if(game.running) throw Error('Pause the clock before changing periods.');
     if(game.finished) throw Error('Reopen the game before changing periods.');
     game.period++; game.quarter=game.period<=4 ? String(game.period) : `OT${game.period-4}`;
     game.remainingMs=(game.period<=4?game.minutes:game.overtimeMinutes)*60000; game.deadline=null;
   }
   function recordEvent(game,type,player,side='HOME',now=Date.now()) {
+    assertMutable(game);
     if(!game.started || game.finished) throw Error('Start or reopen the game before recording stats.');
     if(!Object.hasOwn(TYPES,type) || !['HOME','AWAY'].includes(side)) throw Error('Invalid stat action.');
     if(side==='HOME' && (!player || !game.roster.some(p=>p.id===player.id))) throw Error('Select a player first.');
@@ -269,12 +332,12 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     const event={game_id:game.id, event_id:(game.gameEvents.at(-1)?.event_id||0)+1,
       game_date:game.date, opponent:game.opponent, player_id:p?.id??'', player_name:p?.name??'', jersey_number:p?.number??'',
       quarter:game.quarter, game_clock:clock(game,now), event_type:type, points_value:TYPES[type], recorded_at:new Date(now).toISOString(),
-      team_side:side, is_voided:false};
+      team_side:side, is_voided:false,lineupSnapshot:T.snapshotLineup(game)};
     game.gameEvents.push(event);
     if(p&&game.participation?.[p.id])game.participation[p.id].played=true;
     return event;
   }
-  function undo(game) {const e=game.gameEvents.findLast(e=>!e.is_voided); if(e)e.is_voided=true; return e||null;}
+  function undo(game) {assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(e)correctEvents(game,[{eventId:e.event_id,patch:{is_voided:true}}],(game.eventLinks||[]).filter(l=>l.assistEventId!==e.event_id&&l.shotEventId!==e.event_id));return e?game.gameEvents.find(x=>x.event_id===e.event_id):null;}
   function stats(game,side,playerId) {
     const s={points:0,fgm:0,fga:0,twoMade:0,twoAttempts:0,threeMade:0,threeAttempts:0,ftm:0,fta:0,offensive:0,defensive:0,rebounds:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0};
     const mapping={OFF_REBOUND:'offensive',DEF_REBOUND:'defensive',ASSIST:'assists',STEAL:'steals',BLOCK:'blocks',TURNOVER:'turnovers',FOUL:'fouls'};
@@ -305,6 +368,10 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     for(const g of state.games){
       check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);
       T.validateGame(g);
+      check(g.finalizedAt===undefined||(g.finished&&!g.running&&typeof g.finalizedAt==='string'&&Number.isFinite(Date.parse(g.finalizedAt))));
+      if(g.eventLinks!==undefined)C.validateLinks(g.gameEvents,g.eventLinks);
+      if(g.correctionAudit!==undefined)check(Array.isArray(g.correctionAudit)&&g.correctionAudit.every(t=>t&&typeof t.id==='string'&&Array.isArray(t.changes)&&Array.isArray(t.linksBefore)&&Array.isArray(t.linksAfter)&&t.changes.every(c=>g.gameEvents.some(e=>e.event_id===c.eventId)&&c.before?.event_id===c.eventId&&c.after?.event_id===c.eventId)));
+      check(g.clockSpeed===undefined||[1,1.5,2,4].includes(g.clockSpeed));
       check(typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Number.isFinite(Date.parse(g.date))&&new Date(g.date).toISOString().slice(0,10)===g.date&&str(g.opponent));
       check(g.category==null||['official','friendly'].includes(g.category));
       check([g.minutes,g.overtimeMinutes].every(n=>Number.isInteger(n)&&n>=1&&n<=99));
@@ -313,6 +380,7 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
       check(Number.isFinite(g.remainingMs)&&g.remainingMs>=0&&g.remainingMs<=5999000&&(g.running?Number.isFinite(g.deadline):g.deadline===null));
       check(Array.isArray(g.gameEvents)); let previous=0;
       for(const e of g.gameEvents){
+        if(e.lineupSnapshot!==undefined)T.validateSnapshot(g,e.lineupSnapshot);
         check(e&&COLUMNS.every(c=>Object.hasOwn(e,c))&&Number.isInteger(e.event_id)&&e.event_id>previous);previous=e.event_id;
         check(e.game_id===g.id&&e.game_date===g.date&&e.opponent===g.opponent&&Object.hasOwn(TYPES,e.event_type)&&e.points_value===TYPES[e.event_type]&&typeof e.is_voided==='boolean');
         check(['HOME','AWAY'].includes(e.team_side)&&typeof e.quarter==='string'&&/^(?:[1-4]|OT[1-9]\d*)$/.test(e.quarter)&&typeof e.game_clock==='string'&&/^\d{2}:[0-5]\d$/.test(e.game_clock));
@@ -328,8 +396,42 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
     for(const game of snapshot.games)if(game.running)pause(game,now);
     return snapshot;
   }
-  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,nextPeriod,recordEvent,undo,stats,csv,validateState,backup};
+  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,setSpeed,nextPeriod,recordEvent,undo,stats,csv,validateState,backup,assertMutable,finalize,correctEvents,restoreDeletion};
   if(typeof module!=='undefined'&&module.exports)module.exports=api; else root.ScoreEngine=api;
+})(globalThis);
+
+(function(root){
+  'use strict';
+  const E=typeof module==='object'&&module.exports?require('./engine.js'):root.ScoreEngine;
+  const ratio=(a,b,scale=1)=>b?scale*a/b:null;
+  function player(game,id){
+    const s=E.stats(game,'HOME',id);let plusMinus=0,plusMinusStatus='complete';
+    for(const e of game.gameEvents){
+      if(e.is_voided||!e.points_value)continue;
+      const snap=e.lineupSnapshot;
+      if(!snap||snap.status!=='complete'){plusMinusStatus=snap?.status==='partial'&&plusMinusStatus!=='unknown'?'partial':'unknown';continue;}
+      if(snap.playerIds.includes(id))plusMinus+=(e.team_side==='HOME'?1:-1)*e.points_value;
+    }
+    return {fgPct:ratio(s.fgm,s.fga,100),threePct:ratio(s.threeMade,s.threeAttempts,100),ftPct:ratio(s.ftm,s.fta,100),efgPct:ratio(s.fgm+.5*s.threeMade,s.fga,100),tsPct:ratio(s.points,2*(s.fga+.44*s.fta),100),astTo:ratio(s.assists,s.turnovers),plusMinus:plusMinusStatus==='complete'?plusMinus:null,plusMinusStatus};
+  }
+  function csv(game){
+    const columns=['player_id','player_name','jersey_number','points','fgm','fga','threeMade','threeAttempts','ftm','fta','rebounds','assists','steals','blocks','turnovers','fouls','fgPct','threePct','ftPct','efgPct','tsPct','astTo','plusMinus','plus_minus_status'];
+    const escape=v=>/[",\r\n]/.test(String(v??''))?'"'+String(v).replaceAll('"','""')+'"':String(v??'');
+    const rows=game.roster.filter(p=>!game.squad||game.squad.includes(p.id)).map(p=>{const a=player(game,p.id);return {player_id:p.id,player_name:p.name,jersey_number:p.number,...E.stats(game,'HOME',p.id),...a,plus_minus_status:a.plusMinusStatus};});
+    return '\uFEFF'+columns.join(',')+'\r\n'+rows.map(r=>columns.map(k=>escape(r[k])).join(',')+'\r\n').join('');
+  }
+  const api={player,csv};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlayerAnalytics=api;
+})(globalThis);
+
+(function(root){
+ 'use strict';const E=typeof module==='object'&&module.exports?require('./engine.js'):root.ScoreEngine;
+ function exportGame(game,prepare,persist,download){
+   if(!game.finished)throw Error('End the game before exporting final results.');
+   const content=prepare();
+   if(!game.finalizedAt&&!game.remote){E.finalize(game);try{persist();}catch(error){delete game.finalizedAt;throw error;}}
+   download(content);
+ }
+ const api={exportGame};if(typeof module==='object'&&module.exports)module.exports=api;else root.ResultExport=api;
 })(globalThis);
 
 globalThis.DEFAULT_ROSTER = [
@@ -381,7 +483,7 @@ function parseCSV(text){
 function prepare(game,E,T,options={}){
   if(!game?.finished)throw Error('Finish this game before uploading.');
   if(game.remote?.payload)return game.remote.payload;
-  const payload={schema_version:1,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game)};
+  const payload={schema_version:2,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game),lineups:{version:1,snapshots:game.gameEvents.map(e=>({event_id:e.event_id,status:e.lineupSnapshot?.status||'unknown',members:(e.lineupSnapshot?.playerIds||[]).map(id=>({local_player_id:id,player_id:game.roster.find(p=>p.id===id)?.guest?T.GUEST:id}))}))}};
   const parts=parseCSV(payload.participation_csv).rows;
   const duration=parts.every(p=>p.coverage==='complete')?Math.round(parts.reduce((n,p)=>n+Number(p.played_ms),0)/5):null;
   payload.game_details={category:game.category??null,duration_ms:duration>0&&duration<=86400000?duration:null,stats_complete:options.statsComplete===true};
@@ -473,7 +575,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   function renderClock(){
     const g=current();if(!g)return;
     if(g.running&&E.remaining(g)<=0){E.pause(g);save();toast('Period complete. Advance when you are ready.');}
-    $('clock-display').textContent=E.clock(g);
+    $('clock-display').textContent=E.clock(g);$('clock-speed').value=String(g.clockSpeed||1);$('clock-speed').disabled=!!(g.finished||g.finalizedAt||g.remote);
     $('period-label').textContent=periodText(g);
     $('clock-status').textContent=g.finished?'FINAL':g.running?'LIVE':g.started?'PAUSED':'READY';
     $('clock-status').classList.toggle('running',g.running);
@@ -502,17 +604,17 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
     $('selected-player').innerHTML=`<span class="selected-avatar">${side==='AWAY'?'A':player?player.number:'—'}</span><div><div class="selected-name">${html(name)}</div><div class="selected-description">${side==='AWAY'?'Team-level recording':player?'Recording for our team':'Select a player from the roster'}</div></div><span class="selection-tag">${side==='AWAY'?'OPPONENT':'OUR TEAM'}</span>`;
     $('home-side').classList.toggle('active',side==='HOME');$('away-side').classList.toggle('active',side==='AWAY');$('home-side').setAttribute('aria-pressed',side==='HOME');$('away-side').setAttribute('aria-pressed',side==='AWAY');
     document.querySelectorAll('[data-stat]').forEach(b=>b.disabled=!g||!g.started||g.finished||(side==='HOME'&&!player));
-    $('recording-hint').textContent=!g?'Create a game to start recording.':g.finished?'Game complete. Reopen it to make corrections.':!g.started?'Start the game clock to enable recording.':side==='HOME'&&!player?'Select a player, then tap a stat.':'Each tap records one play at the displayed game time.';
+    $('recording-hint').textContent=!g?'Create a game to start recording.':g.finished?'Game complete. Select a recorded action to correct it before export.':!g.started?'Start the game clock to enable recording.':side==='HOME'&&!player?'Select a player, then tap a stat.':'Each tap records one play at the displayed game time.';
     const events=g?.gameEvents||[];
     $('event-count').textContent=events.length;
     $('event-list').innerHTML=[...events].reverse().map(e=>{
       const category=e.event_type.endsWith('_MADE')?'made':e.event_type.endsWith('_MISSED')?'missed':['FOUL','TURNOVER'].includes(e.event_type)?'danger':'';
       const icon=e.points_value?`+${e.points_value}`:category==='missed'?'×':{OFF_REBOUND:'OR',DEF_REBOUND:'DR',ASSIST:'A',STEAL:'S',BLOCK:'B',TURNOVER:'TO',FOUL:'F'}[e.event_type]||'•';
-      return `<div class="event-item ${e.is_voided?'voided':''}"><span class="event-icon ${category}">${icon}</span><div class="event-body"><strong>${html(labels[e.event_type])}</strong><small>${e.team_side==='HOME'?`#${e.jersey_number} ${html(e.player_name)}`:`${html(e.opponent)} · Opponent`}${e.is_voided?' · VOIDED':''}</small></div><div class="event-time">${html(e.game_clock)}<small>${e.quarter.startsWith('OT')?html(e.quarter):'Q'+html(e.quarter)} · #${e.event_id}</small></div></div>`;
+      return `<div class="event-item" data-event="${e.event_id}" role="button" tabindex="0" aria-label="Correct play ${e.event_id}" data-void="${e.is_voided}"><span class="event-icon ${category}">${icon}</span><div class="event-body"><strong>${html(labels[e.event_type])}</strong><small>${e.team_side==='HOME'?`#${e.jersey_number} ${html(e.player_name)}`:`${html(e.opponent)} · Opponent`}${e.is_voided?' · VOIDED':''}</small></div><div class="event-time">${html(e.game_clock)}<small>${e.quarter.startsWith('OT')?html(e.quarter):'Q'+html(e.quarter)} · #${e.event_id}</small></div></div>`;
     }).join('')||'<div class="empty-state"><span class="empty-icon">◎</span>Your game starts here.<br>Record a play to see it in the feed.</div>';
-    $('undo-button').disabled=!events.some(e=>!e.is_voided)||g?.finished;
-    $('export-button').disabled=!g;$('finish-button').disabled=!g;
-    $('finish-button').textContent=g?.finished?'Reopen game':'End game';
+    $('undo-button').disabled=!events.some(e=>!e.is_voided)||!!g?.finalizedAt||!!g?.remote;
+    $('export-button').disabled=!g;$('finish-button').disabled=!g||!!g.finalizedAt||!!g.remote;
+    $('finish-button').textContent=g?.finalizedAt?'Exported · locked':g?.finished?'Reopen game':'End game';
     for(const id of ['clock-button','adjust-button','period-button'])$(id).disabled=!g;
     renderClock();renderBox();renderRemote();
   }
@@ -521,6 +623,12 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
     const cells=s=>`<td>${s.points}</td><td>${s.fgm}/${s.fga}</td><td>${s.threeMade}/${s.threeAttempts}</td><td>${s.ftm}/${s.fta}</td><td>${s.offensive}</td><td>${s.defensive}</td><td>${s.rebounds}</td><td>${s.assists}</td><td>${s.steals}</td><td>${s.blocks}</td><td>${s.turnovers}</td><td>${s.fouls}</td>`;
     const players=g.roster.filter(p=>!g.squad||g.squad.includes(p.id)||g.gameEvents.some(e=>e.player_id===p.id));
     $('box-table').innerHTML=`<table><thead><tr><th>PLAYER</th><th>MIN</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>OREB</th><th>DREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th></tr></thead><tbody>${players.map(p=>`<tr><td>#${p.number} ${html(p.name)}${g.starters?.includes(p.id)?' (starter)':''}</td><td>${g.participation?.[p.id]?T.minutes(g,p.id,Date.now()).toFixed(2):'—'}</td>${cells(E.stats(g,'HOME',p.id))}</tr>`).join('')}</tbody><tfoot><tr><td>Our team</td><td>—</td>${cells(E.stats(g,'HOME'))}</tr><tr><td>${html(g.opponent)}</td><td>—</td>${cells(E.stats(g,'AWAY'))}</tr></tfoot></table>`;
+
+    if(g.finished){
+      const format=(v,d=1)=>v==null?'—':v.toFixed(d);
+      $('box-table').insertAdjacentHTML('beforeend',`<h3>Player analytics</h3><p class="form-note">— means no attempts/turnovers, or incomplete historical lineup data for +/−. TS% uses a 0.44 free-throw estimate.</p><button id="player-export-button" class="button subtle">Export player statistics</button><table><thead><tr><th>PLAYER</th><th>+/−</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>AST/TO</th></tr></thead><tbody>${players.map(p=>{const a=PlayerAnalytics.player(g,p.id);return `<tr><td>${html(p.name)}</td><td title="${a.plusMinusStatus}">${a.plusMinus==null?'—':a.plusMinus>0?'+'+a.plusMinus:a.plusMinus}</td>${['fgPct','threePct','ftPct','efgPct','tsPct','astTo'].map(k=>`<td>${format(a[k],k==='astTo'?2:1)}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`);
+      $('player-export-button').onclick=()=>exportResults('player_statistics',g=>PlayerAnalytics.csv(g));
+    }
   }
   $('roster-list').addEventListener('click',event=>{const b=event.target.closest('[data-player]');if(b){selectedId=b.dataset.player;side='HOME';render();}});
   $('home-side').addEventListener('click',()=>{side='HOME';render();});$('away-side').addEventListener('click',()=>{side='AWAY';render();});
@@ -533,6 +641,36 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   $('clock-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{E.setClock(current(),$('clock-input').value.trim());$('clock-dialog').close();toast('Clock updated.');});});
   $('period-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;confirm('Advance the period?',`The clock will reset to ${g.period<4?g.minutes:g.overtimeMinutes}:00 and stay paused. All recorded plays will be kept.`,()=>run(()=>E.nextPeriod(g)));});
   $('undo-button').addEventListener('click',()=>run(()=>{const e=E.undo(current());if(e)toast(`Play #${e.event_id} voided. Stats updated.`);}));
+
+  function exportResults(kind,prepare){
+    const g=current();if(!g)return;if(!g.finished){toast('End the game before exporting final results.',true);return;}
+    const action=()=>{try{ResultExport.exportGame(g,()=>prepare(g),()=>{if(saveBlocked)throw Error('Restore browser saving before finalizing.');localStorage.setItem(KEY,JSON.stringify(state));},content=>download(content,`${g.id}_${kind}.csv`,'text/csv;charset=utf-8'));render();toast('Results exported. This game is locked; you can download its results again.');}catch(error){toast(error.message,true);}};
+    if(g.finalizedAt||g.remote)action();else confirm('Finalize and export?','Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',action);
+  }
+  $('clock-speed').addEventListener('change',()=>run(()=>E.setSpeed(current(),Number($('clock-speed').value))));
+  let correctionId=null;
+  function editEvent(id){
+    const g=current();E.assertMutable(g);if(g.running)E.pause(g);save();render();const e=g.gameEvents.find(x=>x.event_id===id);if(!e)return;correctionId=id;
+    $('correction-time').textContent=`Play #${id} · ${e.quarter} · ${e.game_clock} (time stays unchanged)`;
+    $('correction-side').value=e.team_side;$('correction-player').innerHTML=g.roster.filter(p=>!g.squad||g.squad.includes(p.id)).map(p=>`<option value="${html(p.id)}">#${p.number} ${html(p.name)}</option>`).join('');$('correction-player').value=e.player_id||g.roster[0]?.id;
+    $('correction-type').innerHTML=Object.keys(E.TYPES).map(t=>`<option value="${t}">${html(labels[t])}</option>`).join('');$('correction-type').value=e.event_type;$('correction-delete').checked=e.is_voided;$('correction-unlink').checked=false;$('correction-error').textContent='';
+    const linked=new Set((g.eventLinks||[]).flatMap(l=>l.assistEventId===id?[l.shotEventId]:l.shotEventId===id?[l.assistEventId]:[]));
+    $('correction-related').innerHTML=g.gameEvents.filter(x=>x.event_id!==id&&!x.is_voided&&(Math.abs(x.event_id-id)<=5||linked.has(x.event_id))).map(x=>`<div class="related-row"><span>#${x.event_id} ${html(labels[x.event_type])} · ${html(x.player_name||g.opponent)}${linked.has(x.event_id)?' · linked':''}</span><label><input type="checkbox" data-related-delete="${x.event_id}"> Delete</label>${['ASSIST','2PT_MADE','3PT_MADE'].includes(x.event_type)?`<label><input type="checkbox" data-related-link="${x.event_id}" ${linked.has(x.event_id)?'checked':''}> Link</label>`:''}</div>`).join('');
+    const tx=g.correctionAudit?.findLast(t=>!t.restored&&t.changes.some(c=>c.eventId===id&&!c.before.is_voided&&c.after.is_voided));$('correction-restore').hidden=!e.is_voided||!tx;$('correction-restore').dataset.transaction=tx?.id||'';
+    $('correction-player').disabled=e.team_side==='AWAY';open('correction-dialog');
+  }
+  $('correction-side').addEventListener('change',()=>{$('correction-player').disabled=$('correction-side').value==='AWAY';});
+  $('event-list').addEventListener('click',e=>{const item=e.target.closest('[data-event]');if(item)run(()=>editEvent(Number(item.dataset.event)));});
+  $('event-list').addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)&&e.target.matches('[data-event]')){e.preventDefault();run(()=>editEvent(Number(e.target.dataset.event)));}});
+  $('correction-form').addEventListener('submit',event=>{event.preventDefault();try{
+    const g=current(),patch={event_type:$('correction-type').value,team_side:$('correction-side').value,player_id:$('correction-player').value,is_voided:$('correction-delete').checked};
+    const changes=[{eventId:correctionId,patch},...Array.from(document.querySelectorAll('[data-related-delete]:checked'),el=>({eventId:Number(el.dataset.relatedDelete),patch:{is_voided:true}}))];
+    let links=(g.eventLinks||[]).filter(l=>l.assistEventId!==correctionId&&l.shotEventId!==correctionId);
+    if(!$('correction-unlink').checked)for(const el of document.querySelectorAll('[data-related-link]:checked')){const other=Number(el.dataset.relatedLink);links.push(patch.event_type==='ASSIST'?{assistEventId:correctionId,shotEventId:other}:{assistEventId:other,shotEventId:correctionId});}
+    const deleted=new Set(changes.filter(c=>c.patch.is_voided).map(c=>c.eventId));links=links.filter(l=>!deleted.has(l.assistEventId)&&!deleted.has(l.shotEventId));
+    E.correctEvents(g,changes,links);save();render();$('correction-dialog').close();toast('Correction saved. Scores and statistics recalculated.');
+  }catch(error){$('correction-error').textContent=error.message;}});
+  $('correction-restore').addEventListener('click',()=>{try{E.restoreDeletion(current(),$('correction-restore').dataset.transaction);save();render();$('correction-dialog').close();toast('Deletion group restored.');}catch(error){$('correction-error').textContent=error.message;}});
   function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';$('setup-category').value='friendly';open('setup-dialog');}
   $('new-game-button').addEventListener('click',setup);
   $('setup-form').addEventListener('submit',async e=>{e.preventDefault();
@@ -545,12 +683,12 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
   });});
   $('finish-button').addEventListener('click',()=>{
     const g=current();if(!g)return;
-    if(g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
+    if(g.finalizedAt||g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
     if(g.finished){run(()=>{g.finished=false;toast('Game reopened. The clock is paused.');});return;}
     confirm('Finish this game?','The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',()=>run(()=>{E.pause(g);g.finished=true;toast('Final whistle. Your event log is ready to export.');}));
   });
   function download(text,name,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-  $('export-button').addEventListener('click',()=>{const g=current();if(g){download(E.csv(g),`${g.id}_events.csv`,'text/csv;charset=utf-8');toast(`Exported ${g.gameEvents.length} events, including voided plays.`);}});
+  $('export-button').addEventListener('click',()=>exportResults('events',g=>E.csv(g)));
   $('backup-button').addEventListener('click',()=>download(JSON.stringify(E.backup(state),null,2),`courtside-backup-${new Date().toISOString().slice(0,10)}.json`,'application/json'));
   $('recovery-button').addEventListener('click',()=>download(rawSaved||'',`courtside-original-recovery-${new Date().toISOString().slice(0,10)}.txt`,'text/plain;charset=utf-8'));
   $('restore-button').addEventListener('click',()=>$('restore-file').click());
@@ -642,7 +780,7 @@ const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof m
       confirm('Apply roster CSV?',`${added.length} additions and ${updated.length} updates. Players absent from this file will be retained. ${rosterUpdateNote}\n\n${preview||'No changes.'}`,()=>run(()=>{applyRoster(merged);toast('Roster imported. '+rosterUpdateNote);}));
     }catch(e){toast(e.message,true);}finally{$('roster-file').value='';}
   });
-  $('participation-export-button').addEventListener('click',()=>run(()=>{const g=current();download(T.participationCSV(g,Date.now()),`${g.id}_participation.csv`,'text/csv;charset=utf-8');toast('Participation exported. Guests are combined as Guest Player.');}));
+  $('participation-export-button').addEventListener('click',()=>exportResults('participation',g=>T.participationCSV(g,Date.now())));
   $('history-button').addEventListener('click',()=>{
     $('history-list').innerHTML=[...state.games].reverse().map(g=>`<div class="history-card"><div><strong>vs ${html(g.opponent)}</strong><small>${html(g.date)} · ${g.finished?'Final':g.started?'In progress':'Ready'}<br>Our team ${E.stats(g,'HOME').points} – ${E.stats(g,'AWAY').points} Opponent · ${g.gameEvents.length} events</small></div><button class="button subtle" data-game="${html(g.id)}">Open</button></div>`).join('')||'<div class="empty-state">Your games will appear here.</div>';open('history-dialog');
   });

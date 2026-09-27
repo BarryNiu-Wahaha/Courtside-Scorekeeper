@@ -42,3 +42,14 @@ Mutation responses include `publication:"published"|"pending"` and fresh `public
 A dedicated MySQL connection holds a database-specific `GET_LOCK` across consistent snapshot extraction, deployment and marking the captured revision published, releasing in `finally`. Snapshot reads use one repeatable-read transaction. Deployment holds no row locks, so concurrent mutations can commit; a newer revision remains pending. Another publication request returns pending while a deployment owns the lock. Retry always rebuilds from current database data.
 
 Run `python -m unittest discover -s tests -p "test_*.py"` for Python unit/CSV coverage, and `python tests/run_mysql_tests.py` for real integration coverage. The latter starts a temporary loopback-only MySQL instance and deletes only its own generated directory; it never uses the production server on port 3306.
+
+
+## Version 2 event lineups
+
+The recorder now sends schema_version 2 with the existing CSV fields and `lineups: {version: 1, snapshots: [{event_id, status, members: [{local_player_id, player_id}]}]}`. Each event, including non-scoring and voided events, has one snapshot. Complete snapshots contain five distinct local players. Status is `complete`, `partial` or `unknown`; unknown snapshots have no members. Regular IDs map to themselves; multiple distinct local guests map to `P_GUEST`. Members must belong to the uploaded participation and cannot exceed designated counts.
+
+V1 submissions remain accepted with unavailable historical plus-minus. A V1 admin replacement of a V2 game returns 409 to prevent silent metadata loss. Admin edits preserve snapshot associations by event ID; new events receive unknown lineups. Immutable original retry hashes include lineup metadata. Audit documents retain the prior metadata.
+
+Run `python -m scorekeeper_remote migrate` against the intended deployment database before deploying code that queries lineups. The additive, repeatable migration adds `remote_uploads.lineups_json`, `event_lineup_snapshots` and `event_lineup_members` (defined in `sql/migrate_event_lineups.sql`). It preserves existing rows. Event replacement and lineup writes share one transaction; event foreign keys cascade snapshot/member deletion during replacement. No production migration is performed by tests.
+
+The public snapshot stays schema_version 1 and adds optional player fields `plus_minus` and `plus_minus_status`. Only derived results are public; local guest IDs, raw lineups and correction audits are not published. Missing/partial data yields null; the combined Guest Player row has unavailable individual plus-minus.

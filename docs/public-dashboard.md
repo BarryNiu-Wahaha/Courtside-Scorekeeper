@@ -107,3 +107,10 @@ node tests/browser-smoke.cjs
 ```
 
 Browser tests use installed Edge, temporary profiles and controlled local fixture data. `tests/dashboard-fixture.cjs` is synthetic test data only; it is not included in published assets. Screenshots are saved under `tests/artifacts/`. The isolated MySQL runner creates its own temporary server and never uses the user's ordinary database.
+
+
+## Individual game plus-minus
+
+Each game's player box score includes +/−. It sums our points minus opponent points during events whose saved lineup contains that player. Positive values include a plus sign; zero is shown as 0. An em dash indicates missing/incomplete lineup history or a combined guest row. Old games are not retroactively assigned lineups. Backend scoring corrections recompute the values before publication.
+
+Plus-minus is intentionally limited to individual game box scores. Player profiles, leaderboards, season totals and career totals do not aggregate it.

@@ -107,3 +107,16 @@ node tests/browser-smoke.cjs
 The browser smoke test uses installed Microsoft Edge on Windows (or the executable in `EDGE_PATH`) through its debugging protocol. It records real UI actions, verifies downloaded CSV, reloads persisted games and captures screenshots in `tests/artifacts/`. It runs with network access disabled. Viewport tests approximate iPad layouts; real iPad Safari/touch behavior still needs a device check. Files-app HTML previews are not a substitute for a browser runtime.
 
 For browser access through a local development server, run `python -m http.server 8000` in this folder and visit `/Front.html`. An iPad can use the computer's LAN address while connected to the same network. This server is for previewing the page; persistent offline installation on iPad would be a separate hosting/PWA step. No database is involved.
+
+
+## Corrections, recording speed and final exports
+
+Select any action in the event feed to edit its player/team or statistical type, or delete it. The original game time and lineup stay attached. Opening the correction dialog pauses the clock; resume manually afterward. Related actions can be selected for deletion or explicitly linked as shot/assist pairs. Nearby events are suggestions, not automatic links. Invalid linked assists must be corrected, deleted or unlinked. Select a deleted action to restore its deletion group. Substitutions and clock/period history are not editable through this dialog.
+
+Clock speed offers 1×, 1.5×, 2× and 4×. Every new game starts at 1×; an existing game retains its speed. Player minutes advance in game time: thirty real seconds at 2× adds one minute. Match your video on the separate device manually.
+
+End the game to see the player analytics table in Box score. It includes +/−, FG%, 3P%, FT%, eFG%, TS% and AST/TO. TS% uses PTS / (2 × (FGA + 0.44 × FTA)); eFG% uses (FGM + 0.5 × 3PM) / FGA. Zero denominators display —. Exact +/− is unavailable if any active score lacks a complete historical lineup. Corrected scores recalculate using their original lineup.
+
+Event, participation and player-statistics CSV exports require an ended game. The first result export asks to finalize and permanently locks local game edits. Re-download any result after finalization. The browser cannot confirm that you saved the downloaded file; canceling a download does not unlock the game. Backup and roster downloads do not finalize games. Download a backup before finalizing if you need a separate earlier snapshot. Browser storage failure prevents finalization. Cloud upload locks and admin corrections keep their existing rules.
+
+Player-statistics CSV keeps individual local guest rows. Existing event/participation CSVs still combine guests for cloud imports. Uploaded games retain their historical lineups for public box-score +/−; legacy games remain unavailable rather than receiving invented lineup history.

@@ -119,3 +119,10 @@ conda run --no-capture-output -n msba python tests/run_mysql_tests.py
 ```
 
 The integration runner creates a temporary, loopback-only MySQL instance using the installed MySQL 9.7 binary, chooses an unused test port, uses throwaway test databases, then shuts down and removes its own files. It does not connect to your localhost:3306 or place synthetic games in scorekeeper. Set `MYSQLD_PATH` if the executable is elsewhere. Database tests cover real transactions, constraints, deduplication, stale/corrected exports, immutable conflicts, Chinese names, case-sensitive player IDs and schema reinitialization.
+
+
+## Lineup migration and analytical exports
+
+Existing event and participation CSV columns remain unchanged. The separate player-statistics CSV is an analytical output, not input to the event/participation import CLI. Use a V2 recorder cloud upload to retain event lineup metadata. CSV-only historical imports have unavailable plus-minus.
+
+`python -m scorekeeper_remote migrate` creates event lineup snapshot/member tables and adds the upload metadata column without removing existing game data. Its information-schema check makes the column migration rerunnable. For deployment, back up the target database, apply the additive migration, deploy the compatible backend, then publish the recorder/dashboard. Rollback must retain the added tables; old clients cannot overwrite V2 metadata.

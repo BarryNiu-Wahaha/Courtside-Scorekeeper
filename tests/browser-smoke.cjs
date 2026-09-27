@@ -81,15 +81,8 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  await click('#period-button');await click('#confirm-yes');assert.equal((await current()).quarter,'2');assert.equal(await evaluate('document.querySelector("#clock-display").textContent'),'12:00');
  await click('#adjust-button');await value('#clock-input','08:42');await click('#clock-form button[type=submit]');
  await click('[data-player="P_DEFAULT_002"]');await click('[data-stat="DEF_REBOUND"]');
- await click('#export-button');
- const exportedName=(await current()).id+'_events.csv';for(let i=0;i<50&&!fs.existsSync(path.join(artifacts,exportedName));i++)await delay(100);
- const csv=fs.readFileSync(path.join(artifacts,exportedName),'utf8');assert.ok(csv.startsWith('\uFEFFgame_id,'));assert.ok(csv.includes('牛天齐'));assert.ok(csv.includes(',HOME,true\r\n'));assert.equal(csv.split('\r\n').length,19);
  await click('#box-tab');assert.ok((await evaluate('document.querySelector("#box-table").textContent')).includes('牛天齐'));await click('#live-tab');
  await verifySubstitutions();
- await click('#participation-export-button');
- const participationPath=path.join(artifacts,(await current()).id+'_participation.csv');
- for(let i=0;i<100&&!fs.existsSync(participationPath);i++)await delay(100);
- assert.ok(fs.existsSync(path.join(artifacts,(await current()).id+'_participation.csv')));
  await click('#finish-button');await click('#confirm-yes');assert.equal((await current()).finished,true);assert.equal(await evaluate('document.querySelector("[data-stat]").disabled'),true);await click('#finish-button');
  await click('[data-player="P_DEFAULT_002"]');
  await evaluate('window.scrollTo(0,0)');await delay(3100);
@@ -98,6 +91,13 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  await screenshot('ipad-small-landscape',1024,768);
  assert.equal(await evaluate('[...document.querySelectorAll("[data-stat]")].every(b=>b.getBoundingClientRect().bottom<=innerHeight)'),true,'all stat buttons must fit a smaller landscape iPad');
  await screenshot('ipad-portrait',834,1194);await screenshot('laptop',1440,1000);await screenshot('phone',390,844);
+ await click('#finish-button');await click('#confirm-yes');await click('#export-button');await click('#confirm-yes');
+ const exportedName=(await current()).id+'_events.csv';for(let i=0;i<50&&!fs.existsSync(path.join(artifacts,exportedName));i++)await delay(100);
+ const csv=fs.readFileSync(path.join(artifacts,exportedName),'utf8');assert.ok(csv.startsWith('\uFEFFgame_id,'));assert.ok(csv.includes('牛天齐'));assert.ok(csv.includes(',HOME,true\r\n'));assert.equal(csv.split('\r\n').length,19);
+ await click('#participation-export-button');
+ const participationPath=path.join(artifacts,(await current()).id+'_participation.csv');
+ for(let i=0;i<100&&!fs.existsSync(participationPath);i++)await delay(100);
+ assert.ok(fs.existsSync(path.join(artifacts,(await current()).id+'_participation.csv')));
  const firstId=(await current()).id;await click('#new-game-button');await value('#setup-opponent','Second game');await click('#setup-form button[type=submit]');await chooseSquad();assert.equal((await current()).gameEvents.length,0);assert.equal((await snapshot()).games.length,2);
  await click('#history-button');await click(`[data-game="${firstId}"]`);assert.equal((await current()).gameEvents.length,17);
  await click('#backup-button');await delay(200);
@@ -133,11 +133,12 @@ async function screenshot(name,width,height){await send('Emulation.setDeviceMetr
  for(const id of guestIds)await click(`[data-starter="${id}"]`);await click('#lineup-confirm');await click('#clock-button');await delay(100);await click('#clock-button');
  for(const id of guestIds){await click(`[data-player="${id}"]`);await click('[data-stat="3PT_MADE"]');}
  assert.equal(await evaluate('document.querySelector("#home-score").textContent'),'6');
- await click('#export-button');await click('#participation-export-button');
+ await click('#lineup-button');await screenshot('substitution-popup',1194,834);await click('#lineup-dialog [data-close]');
+ await click('#finish-button');await click('#confirm-yes');await click('#export-button');await click('#confirm-yes');await click('#participation-export-button');
  const downloadGame=await current();for(let i=0;i<100;i++){if(['_events.csv','_participation.csv'].every(suffix=>fs.existsSync(path.join(artifacts,downloadGame.id+suffix))))break;await delay(100);}
  const guestGame=await current(),guestCSV=fs.readFileSync(path.join(artifacts,guestGame.id+'_events.csv'),'utf8'),guestParticipation=fs.readFileSync(path.join(artifacts,guestGame.id+'_participation.csv'),'utf8');
  assert.equal(guestCSV.split('P_GUEST').length-1,2);assert.ok(!guestCSV.includes('Private Guest'));assert.ok(guestParticipation.includes('P_GUEST,Guest Player,0,2,2,2,'));assert.ok(!guestParticipation.includes('Private Guest'));assert.equal((await snapshot()).roster.length,27);
- await click('#lineup-button');await screenshot('substitution-popup',1194,834);await click('#lineup-dialog [data-close]');assert.equal((await current()).running,false);
+ assert.equal((await current()).running,false);assert.ok((await current()).finalizedAt);
  // Import after creating a game: update current cards and future substitution choices.
  const historical=JSON.stringify((await snapshot()).games.filter(g=>g.started||g.finished||g.remote));
  await click('#new-game-button');await value('#setup-opponent','Roster refresh regression');await click('#setup-form button[type=submit]');await chooseSquad();
