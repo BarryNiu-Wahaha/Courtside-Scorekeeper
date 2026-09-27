@@ -1,1 +1,1 @@
-globalThis.COURTSIDE_CONFIG = {apiBase: ''};
+globalThis.COURTSIDE_CONFIG = { apiBase: '' };

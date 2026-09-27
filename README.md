@@ -213,6 +213,8 @@ Python discovery skips database integration cases unless their test environment 
 
 ## Explore the repository
 
+New to the codebase? Start with the [code reading guide](docs/code-guide.md) for a reading order, an explanation of the game data, and the edit/build/test workflow.
+
 ```text
 src/                    Browser game engine, roster logic, persistence, and UI
 site/                   Public dashboard, analytics, and admin interface

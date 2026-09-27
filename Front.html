@@ -104,758 +104,2506 @@ html[data-input=keyboard] button{transition:none}html[data-input=keyboard] butto
   <input id="restore-file" type="file" accept=".json,application/json" hidden>
   <dialog id="upload-dialog"><form id="upload-form"><h2>Upload finished game</h2><p id="upload-status" class="dialog-description" role="status"></p><label class="coverage-choice"><input id="upload-complete" type="checkbox"> Full statistics recorded for both teams (including misses, rebounds and turnovers)</label><p class="form-note">Enables estimated pace and efficiency. Leave unchecked if recording was incomplete.</p><label>Scorekeeper PIN<input id="upload-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="64" required></label><div class="actions"><button id="upload-submit" type="submit" class="button dark">Upload game</button><button type="button" class="button subtle" data-close>Close</button></div></form></dialog>
   <dialog id="correction-dialog"><form id="correction-form"><div class="dialog-heading"><h2>Correct statistical action</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><p id="correction-time" class="dialog-description"></p><label>Team<select id="correction-side"><option value="HOME">Our team</option><option value="AWAY">Opponent</option></select></label><label>Player<select id="correction-player"></select></label><label>Action<select id="correction-type"></select></label><label><input type="checkbox" id="correction-delete"> Delete this action</label><h3>Related actions</h3><p class="form-note">Select related actions to delete together, or link an assist to this made basket. Nearby events are suggestions only. Resolve other details by opening their event.</p><div id="correction-related"></div><label><input type="checkbox" id="correction-unlink"> Remove existing links involving this action</label><p id="correction-error" role="alert"></p><div class="actions"><button class="button dark" type="submit">Save correction</button><button id="correction-restore" class="button subtle" type="button">Restore deletion group</button><button class="button subtle" type="button" data-close>Cancel</button></div></form></dialog>
-  <script>(function(root){
+  <script>(function (root) {
   'use strict';
-  const GUEST='P_GUEST';
-  const ROSTER_COLUMNS=['player_id','player_name','jersey_number','enrollment_year','status_override'];
-  const PART_COLUMNS=['game_id','game_date','opponent','revision','coverage','player_id','player_name','jersey_number','designated_count','starter_count','played_count','played_ms'];
-  const fail=message=>{throw Error(message);};
-  function assertMutable(game){if(game.finalizedAt||game.remote)fail('This game is finalized or locked for upload. Download its results again to retrieve them.');}
-  function newId(){if(typeof root.crypto.randomUUID==='function')return root.crypto.randomUUID();const bytes=root.crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;}
-  function status(p,date=new Date()){
-    if(p.statusOverride)return p.statusOverride;
-    if(p.enrollmentYear==null)return 'Unknown';
-    return date>=new Date(p.enrollmentYear+4,8,1)?'graduated':'Astudent';
+  const GUEST = 'P_GUEST';
+  const ROSTER_COLUMNS = [
+    'player_id',
+    'player_name',
+    'jersey_number',
+    'enrollment_year',
+    'status_override'
+  ];
+  const PART_COLUMNS = [
+    'game_id',
+    'game_date',
+    'opponent',
+    'revision',
+    'coverage',
+    'player_id',
+    'player_name',
+    'jersey_number',
+    'designated_count',
+    'starter_count',
+    'played_count',
+    'played_ms'
+  ];
+  const fail = (message) => {
+    throw Error(message);
+  };
+  function assertMutable(game) {
+    if (game.finalizedAt || game.remote)
+      fail(
+        'This game is finalized or locked for upload. Download its results again to retrieve them.'
+      );
   }
-  function validatePlayer(p){
-    if(!p||typeof p.id!=='string'||!p.id||p.id.length>128||p.id===GUEST||typeof p.name!=='string'||!p.name.trim()||p.name.length>100||!Number.isInteger(p.number)||p.number<0||p.number>99)fail('Invalid roster identity, name, or jersey number.');
-    if(p.enrollmentYear!=null&&(!Number.isInteger(p.enrollmentYear)||p.enrollmentYear<1900||p.enrollmentYear>9995))fail('Enrollment year must be a whole year from 1900 to 9995.');
-    if(p.statusOverride!=null&&!['Astudent','graduated'].includes(p.statusOverride))fail('Status override must be Astudent, graduated, or automatic.');
-    if(p.guest!==undefined&&typeof p.guest!=='boolean')fail('Invalid guest category.');
+  function newId() {
+    if (typeof root.crypto.randomUUID === 'function') return root.crypto.randomUUID();
+    const bytes = root.crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
-  function encode(columns,rows){const escape=v=>/[",\r\n]/.test(String(v??''))?'"'+String(v??'').replaceAll('"','""')+'"':String(v??'');return '\uFEFF'+columns.join(',')+'\r\n'+rows.map(r=>columns.map(k=>escape(r[k])).join(',')+'\r\n').join('');}
-  function parseCSV(text){
-    text=text.replace(/^\uFEFF/,'');const rows=[];let row=[],value='',quoted=false,closed=false;
-    for(let i=0;i<text.length;i++){
-      const c=text[i];
-      if(quoted){if(c==='"'){if(text[i+1]==='"'){value+='"';i++;}else{quoted=false;closed=true;}}else value+=c;continue;}
-      if(c==='"'){if(value||closed)fail('Invalid CSV quoting.');quoted=true;continue;}
-      if(c===','||c==='\n'||c==='\r'){row.push(value);value='';closed=false;if(c!==','){if(c==='\r'&&text[i+1]==='\n')i++;rows.push(row);row=[];}continue;}
-      if(closed)fail('Unexpected characters after CSV quote.');value+=c;
+  function status(p, date = new Date()) {
+    if (p.statusOverride) return p.statusOverride;
+    if (p.enrollmentYear == null) return 'Unknown';
+    return date >= new Date(p.enrollmentYear + 4, 8, 1) ? 'graduated' : 'Astudent';
+  }
+  function validatePlayer(p) {
+    if (
+      !p ||
+      typeof p.id !== 'string' ||
+      !p.id ||
+      p.id.length > 128 ||
+      p.id === GUEST ||
+      typeof p.name !== 'string' ||
+      !p.name.trim() ||
+      p.name.length > 100 ||
+      !Number.isInteger(p.number) ||
+      p.number < 0 ||
+      p.number > 99
+    )
+      fail('Invalid roster identity, name, or jersey number.');
+    if (
+      p.enrollmentYear != null &&
+      (!Number.isInteger(p.enrollmentYear) || p.enrollmentYear < 1900 || p.enrollmentYear > 9995)
+    )
+      fail('Enrollment year must be a whole year from 1900 to 9995.');
+    if (p.statusOverride != null && !['Astudent', 'graduated'].includes(p.statusOverride))
+      fail('Status override must be Astudent, graduated, or automatic.');
+    if (p.guest !== undefined && typeof p.guest !== 'boolean') fail('Invalid guest category.');
+  }
+  function encode(columns, rows) {
+    const escape = (v) =>
+      /[",\r\n]/.test(String(v ?? ''))
+        ? '"' + String(v ?? '').replaceAll('"', '""') + '"'
+        : String(v ?? '');
+    return (
+      '\uFEFF' +
+      columns.join(',') +
+      '\r\n' +
+      rows.map((r) => columns.map((k) => escape(r[k])).join(',') + '\r\n').join('')
+    );
+  }
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, '');
+    const rows = [];
+    let row = [],
+      value = '',
+      quoted = false,
+      closed = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            value += '"';
+            i++;
+          } else {
+            quoted = false;
+            closed = true;
+          }
+        } else value += c;
+        continue;
+      }
+      if (c === '"') {
+        if (value || closed) fail('Invalid CSV quoting.');
+        quoted = true;
+        continue;
+      }
+      if (c === ',' || c === '\n' || c === '\r') {
+        row.push(value);
+        value = '';
+        closed = false;
+        if (c !== ',') {
+          if (c === '\r' && text[i + 1] === '\n') i++;
+          rows.push(row);
+          row = [];
+        }
+        continue;
+      }
+      if (closed) fail('Unexpected characters after CSV quote.');
+      value += c;
     }
-    if(quoted)fail('Unclosed CSV quote.');if(value||closed||row.length){row.push(value);rows.push(row);}return rows;
-  }
-  function rosterCSV(roster){return encode(ROSTER_COLUMNS,roster.filter(p=>!p.guest).map(p=>({player_id:p.id,player_name:p.name,jersey_number:p.number,enrollment_year:p.enrollmentYear,status_override:p.statusOverride})));}
-  function parseRoster(text,existing=[]){
-    const rows=parseCSV(text);if(!rows.length||rows[0].join(',')!==ROSTER_COLUMNS.join(','))fail('Roster CSV headers must be '+ROSTER_COLUMNS.join(',')+'.');
-    const ids=new Set(),incoming=[];
-    for(const [index,row] of rows.slice(1).entries()){
-      if(row.length!==5)fail('Invalid roster row '+(index+2)+'.');
-      const [rawId,name,number,year,override]=row.map(v=>v.trim());
-      if(rawId&&!/^P[A-Za-z0-9_-]{1,127}$/.test(rawId))fail('Player IDs must start with P and contain only letters, digits, underscores, or hyphens.');
-      if(!/^\d{1,2}$/.test(number)||year&&!/^\d{4}$/.test(year))fail('Invalid number or enrollment year on roster row '+(index+2)+'.');
-      const p={id:rawId||'P_'+newId(),name,number:Number(number),enrollmentYear:year?Number(year):null,statusOverride:override||null};validatePlayer(p);
-      if(ids.has(p.id))fail('Duplicate player ID: '+p.id);ids.add(p.id);incoming.push(p);
+    if (quoted) fail('Unclosed CSV quote.');
+    if (value || closed || row.length) {
+      row.push(value);
+      rows.push(row);
     }
-    if(!incoming.length)fail('Roster CSV contains no players.');
-    const merged=new Map(existing.map(p=>[p.id,{...p}]));for(const p of incoming)merged.set(p.id,p);return [...merged.values()];
+    return rows;
   }
-  function checkFive(game,ids,squad=game.squad){if(!Array.isArray(ids)||ids.length!==5||new Set(ids).size!==5||ids.some(id=>!squad.includes(id)))fail('Choose exactly five different players from the designated squad.');}
-  function revision(game,now=Date.now()){game.revision=Math.max((game.revision||0)+1,Math.floor(now),1);}
-  function refreshPregameRoster(game,roster,replace=false){
-    if(!game||game.started||game.running||game.finished||game.remote||game.gameEvents.length)return false;
-    const merged=new Map(game.roster.filter(p=>!replace||p.guest).map(p=>[p.id,{...p}]));
-    for(const p of roster)if(!p.guest&&!merged.get(p.id)?.guest)merged.set(p.id,{...merged.get(p.id),...p});
-    const next=[...merged.values()];
-    if(JSON.stringify(next)===JSON.stringify(game.roster))return false;
-    game.roster=next;
-    if(replace&&game.squad){
-      const valid=new Set(next.map(p=>p.id)),squad=game.squad.filter(id=>valid.has(id)),five=game.lineup.filter(id=>valid.has(id));
-      if(five.length===5){game.squad=squad;game.participation=Object.fromEntries(squad.map(id=>[id,game.participation[id]]));}
-      else for(const key of ['squad','lineup','starters','participation','timingAnchor','coverage'])delete game[key];
+  function rosterCSV(roster) {
+    return encode(
+      ROSTER_COLUMNS,
+      roster
+        .filter((p) => !p.guest)
+        .map((p) => ({
+          player_id: p.id,
+          player_name: p.name,
+          jersey_number: p.number,
+          enrollment_year: p.enrollmentYear,
+          status_override: p.statusOverride
+        }))
+    );
+  }
+  function parseRoster(text, existing = []) {
+    const rows = parseCSV(text);
+    if (!rows.length || rows[0].join(',') !== ROSTER_COLUMNS.join(','))
+      fail('Roster CSV headers must be ' + ROSTER_COLUMNS.join(',') + '.');
+    const ids = new Set(),
+      incoming = [];
+    for (const [index, row] of rows.slice(1).entries()) {
+      if (row.length !== 5) fail('Invalid roster row ' + (index + 2) + '.');
+      const [rawId, name, number, year, override] = row.map((v) => v.trim());
+      if (rawId && !/^P[A-Za-z0-9_-]{1,127}$/.test(rawId))
+        fail(
+          'Player IDs must start with P and contain only letters, digits, underscores, or hyphens.'
+        );
+      if (!/^\d{1,2}$/.test(number) || (year && !/^\d{4}$/.test(year)))
+        fail('Invalid number or enrollment year on roster row ' + (index + 2) + '.');
+      const p = {
+        id: rawId || 'P_' + newId(),
+        name,
+        number: Number(number),
+        enrollmentYear: year ? Number(year) : null,
+        statusOverride: override || null
+      };
+      validatePlayer(p);
+      if (ids.has(p.id)) fail('Duplicate player ID: ' + p.id);
+      ids.add(p.id);
+      incoming.push(p);
     }
-    revision(game);return true;
+    if (!incoming.length) fail('Roster CSV contains no players.');
+    const merged = new Map(existing.map((p) => [p.id, { ...p }]));
+    for (const p of incoming) merged.set(p.id, p);
+    return [...merged.values()];
   }
-  function applySharedRoster(state,roster){
-    if(!Array.isArray(roster)||!roster.length)fail('The shared roster is empty. The saved roster was kept.');
-    const ids=new Set();for(const p of roster){validatePlayer(p);if(p.guest||ids.has(p.id))fail('Invalid shared roster identity.');ids.add(p.id);}
-    const archived=new Map((state.localRosterArchive||[]).map(p=>[p.id,{...p}]));
-    for(const p of state.roster)if(!ids.has(p.id))archived.set(p.id,{...p});
-    for(const id of ids)archived.delete(id);
-    state.localRosterArchive=[...archived.values()];state.roster=roster.map(p=>({...p}));
-    for(const game of state.games)refreshPregameRoster(game,state.roster,true);
+  function checkFive(game, ids, squad = game.squad) {
+    if (
+      !Array.isArray(ids) ||
+      ids.length !== 5 ||
+      new Set(ids).size !== 5 ||
+      ids.some((id) => !squad.includes(id))
+    )
+      fail('Choose exactly five different players from the designated squad.');
   }
-  function configure(game,squadIds,starterIds){
+  function revision(game, now = Date.now()) {
+    game.revision = Math.max((game.revision || 0) + 1, Math.floor(now), 1);
+  }
+  function refreshPregameRoster(game, roster, replace = false) {
+    if (
+      !game ||
+      game.started ||
+      game.running ||
+      game.finished ||
+      game.remote ||
+      game.gameEvents.length
+    )
+      return false;
+    const merged = new Map(
+      game.roster.filter((p) => !replace || p.guest).map((p) => [p.id, { ...p }])
+    );
+    for (const p of roster)
+      if (!p.guest && !merged.get(p.id)?.guest) merged.set(p.id, { ...merged.get(p.id), ...p });
+    const next = [...merged.values()];
+    if (JSON.stringify(next) === JSON.stringify(game.roster)) return false;
+    game.roster = next;
+    if (replace && game.squad) {
+      const valid = new Set(next.map((p) => p.id)),
+        squad = game.squad.filter((id) => valid.has(id)),
+        five = game.lineup.filter((id) => valid.has(id));
+      if (five.length === 5) {
+        game.squad = squad;
+        game.participation = Object.fromEntries(squad.map((id) => [id, game.participation[id]]));
+      } else
+        for (const key of [
+          'squad',
+          'lineup',
+          'starters',
+          'participation',
+          'timingAnchor',
+          'coverage'
+        ])
+          delete game[key];
+    }
+    revision(game);
+    return true;
+  }
+  function applySharedRoster(state, roster) {
+    if (!Array.isArray(roster) || !roster.length)
+      fail('The shared roster is empty. The saved roster was kept.');
+    const ids = new Set();
+    for (const p of roster) {
+      validatePlayer(p);
+      if (p.guest || ids.has(p.id)) fail('Invalid shared roster identity.');
+      ids.add(p.id);
+    }
+    const archived = new Map((state.localRosterArchive || []).map((p) => [p.id, { ...p }]));
+    for (const p of state.roster) if (!ids.has(p.id)) archived.set(p.id, { ...p });
+    for (const id of ids) archived.delete(id);
+    state.localRosterArchive = [...archived.values()];
+    state.roster = roster.map((p) => ({ ...p }));
+    for (const game of state.games) refreshPregameRoster(game, state.roster, true);
+  }
+  function configure(game, squadIds, starterIds) {
     assertMutable(game);
-    if(game.running||game.finished||game.squad&&game.started)fail('Squad selection is only available before play starts.');
-    if(!Array.isArray(squadIds)||squadIds.length<5||squadIds.length>15||new Set(squadIds).size!==squadIds.length||squadIds.some(id=>!game.roster.some(p=>p.id===id)))fail('Choose between 5 and 15 different designated players.');
-    checkFive(game,starterIds,squadIds);game.squad=[...squadIds];game.lineup=[...starterIds];game.starters=game.started?[]:[...starterIds];game.coverage=game.started?'partial':'complete';
-    game.participation=Object.fromEntries(squadIds.map(id=>[id,{playedMs:0,played:false}]));game.timingAnchor=null;revision(game);
+    if (game.running || game.finished || (game.squad && game.started))
+      fail('Squad selection is only available before play starts.');
+    if (
+      !Array.isArray(squadIds) ||
+      squadIds.length < 5 ||
+      squadIds.length > 15 ||
+      new Set(squadIds).size !== squadIds.length ||
+      squadIds.some((id) => !game.roster.some((p) => p.id === id))
+    )
+      fail('Choose between 5 and 15 different designated players.');
+    checkFive(game, starterIds, squadIds);
+    game.squad = [...squadIds];
+    game.lineup = [...starterIds];
+    game.starters = game.started ? [] : [...starterIds];
+    game.coverage = game.started ? 'partial' : 'complete';
+    game.participation = Object.fromEntries(
+      squadIds.map((id) => [id, { playedMs: 0, played: false }])
+    );
+    game.timingAnchor = null;
+    revision(game);
   }
-  function settle(game,now=Date.now()){
-    if(!game.squad||!game.running||game.timingAnchor==null)return;
-    const end=Math.min(now,game.deadline),elapsed=elapsedMs(game,end);
-    if(elapsed){for(const id of game.lineup){game.participation[id].playedMs+=elapsed;game.participation[id].played=true;}game.timingAnchor=end;revision(game,now);}
+  function settle(game, now = Date.now()) {
+    if (!game.squad || !game.running || game.timingAnchor == null) return;
+    const end = Math.min(now, game.deadline),
+      elapsed = elapsedMs(game, end);
+    if (elapsed) {
+      for (const id of game.lineup) {
+        game.participation[id].playedMs += elapsed;
+        game.participation[id].played = true;
+      }
+      game.timingAnchor = end;
+      revision(game, now);
+    }
   }
-  function start(game,now){assertMutable(game);if(!game.squad)return;checkFive(game,game.lineup);game.timingAnchor=now;for(const id of game.lineup)game.participation[id].played=true;revision(game,now);}
-  function substitute(game,ids,now=Date.now()){
+  function start(game, now) {
     assertMutable(game);
-    if(game.running||game.finished)fail('Pause the game before substituting.');checkFive(game,ids);game.lineup=[...ids];revision(game,now);
+    if (!game.squad) return;
+    checkFive(game, game.lineup);
+    game.timingAnchor = now;
+    for (const id of game.lineup) game.participation[id].played = true;
+    revision(game, now);
   }
-  function elapsedMs(game,now){const speed=game.clockSpeed||1;return Math.max(0,Math.round((game.deadline-game.timingAnchor)*speed)-Math.max(0,Math.round((game.deadline-now)*speed)));}
-  function minutes(game,id,now=Date.now()){
-    if(!game.participation?.[id])return 0;let ms=game.participation[id].playedMs;
-    if(game.running&&game.lineup.includes(id)&&game.timingAnchor!=null)ms+=elapsedMs(game,Math.min(now,game.deadline));return ms/60000;
+  function substitute(game, ids, now = Date.now()) {
+    assertMutable(game);
+    if (game.running || game.finished) fail('Pause the game before substituting.');
+    checkFive(game, ids);
+    game.lineup = [...ids];
+    revision(game, now);
   }
-  function exportEvent(game,event){return game.roster.find(p=>p.id===event.player_id)?.guest?{...event,player_id:GUEST,player_name:'Guest Player',jersey_number:0}:event;}
-  function participationCSV(game,now=Date.now()){
-    if(!game.squad)fail('Participation is unavailable for this legacy game.');if(!game.finalizedAt&&!game.remote){settle(game,now);revision(game,now);}
-    const rows=new Map();for(const id of game.squad){const p=game.roster.find(p=>p.id===id),key=p.guest?GUEST:id,part=game.participation[id];
-      if(!rows.has(key))rows.set(key,{game_id:game.id,game_date:game.date,opponent:game.opponent,revision:game.revision,coverage:game.coverage,player_id:key,player_name:p.guest?'Guest Player':p.name,jersey_number:p.guest?0:p.number,designated_count:0,starter_count:0,played_count:0,played_ms:0});
-      const row=rows.get(key);row.designated_count++;row.starter_count+=Number(game.starters.includes(id));row.played_count+=Number(part.played);row.played_ms+=part.playedMs;
-    }return encode(PART_COLUMNS,[...rows.values()]);
+  function elapsedMs(game, now) {
+    const speed = game.clockSpeed || 1;
+    return Math.max(
+      0,
+      Math.round((game.deadline - game.timingAnchor) * speed) -
+        Math.max(0, Math.round((game.deadline - now) * speed))
+    );
   }
-  function snapshotLineup(game){return {status:game.lineup?.length===5?'complete':game.lineup?.length?'partial':'unknown',playerIds:[...(game.lineup||[])]};}
-  function validateSnapshot(game,snap){
-    if(!snap||!['complete','partial','unknown'].includes(snap.status)||!Array.isArray(snap.playerIds)||new Set(snap.playerIds).size!==snap.playerIds.length||snap.playerIds.some(id=>!(game.squad||game.roster.map(p=>p.id)).includes(id))||snap.playerIds.length>5||(snap.status==='complete'&&snap.playerIds.length!==5)||(snap.status==='unknown'&&snap.playerIds.length))fail('Invalid event lineup snapshot.');
+  function minutes(game, id, now = Date.now()) {
+    if (!game.participation?.[id]) return 0;
+    let ms = game.participation[id].playedMs;
+    if (game.running && game.lineup.includes(id) && game.timingAnchor != null)
+      ms += elapsedMs(game, Math.min(now, game.deadline));
+    return ms / 60000;
   }
-  function validateGame(game){
-    if(game.squad===undefined)return;
-    if(!Array.isArray(game.squad)||game.squad.length<5||game.squad.length>15||new Set(game.squad).size!==game.squad.length||game.squad.some(id=>!game.roster.some(p=>p.id===id)))fail('Invalid saved game squad.');
-    checkFive(game,game.lineup);if(!['complete','partial'].includes(game.coverage)||!Array.isArray(game.starters)||(game.coverage==='complete'?game.starters.length!==5:game.starters.length!==0)||new Set(game.starters).size!==game.starters.length||game.starters.some(id=>!game.squad.includes(id)))fail('Invalid saved starters or participation coverage.');
-    if(!Number.isSafeInteger(game.revision)||game.revision<1||!game.participation||Object.keys(game.participation).length!==game.squad.length)fail('Invalid saved participation.');
-    for(const id of game.squad){const p=game.participation[id];if(!p||!Number.isSafeInteger(p.playedMs)||p.playedMs<0||typeof p.played!=='boolean'||p.playedMs>0&&!p.played)fail('Invalid saved player minutes.');}
-    if(game.running&&(!Number.isFinite(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs/(game.clockSpeed||1)-0.001))fail('Invalid saved timing anchor.');
+  function exportEvent(game, event) {
+    return game.roster.find((p) => p.id === event.player_id)?.guest
+      ? { ...event, player_id: GUEST, player_name: 'Guest Player', jersey_number: 0 }
+      : event;
   }
-  const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,applySharedRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame,snapshotLineup,validateSnapshot,assertMutable};
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TeamEngine=api;
-})(globalThis);
-
-(function(root){
-  'use strict';
-  const clone=x=>JSON.parse(JSON.stringify(x));
-  function validateLinks(events,links){
-    if(!Array.isArray(links))throw Error('Invalid related actions.');
-    const used=new Set();
-    for(const l of links){const a=events.find(e=>e.event_id===l.assistEventId),s=events.find(e=>e.event_id===l.shotEventId);
-      if(!a||!s||a.is_voided||s.is_voided||a.event_type!=='ASSIST'||!['2PT_MADE','3PT_MADE'].includes(s.event_type)||a.team_side!==s.team_side||(a.team_side==='HOME'&&a.player_id===s.player_id)||used.has(a.event_id)||used.has(s.event_id))throw Error('Resolve linked assists: keep a valid made basket, or remove/unlink the assist.');
-      used.add(a.event_id);used.add(s.event_id);
+  function participationCSV(game, now = Date.now()) {
+    if (!game.squad) fail('Participation is unavailable for this legacy game.');
+    if (!game.finalizedAt && !game.remote) {
+      settle(game, now);
+      revision(game, now);
     }
-  }
-  function prepare(game,changes,links,types){
-    if(!Array.isArray(changes))throw Error('Invalid corrections.');
-    const events=clone(game.gameEvents),seen=new Set(),audit=[];
-    for(const c of changes){const e=events.find(e=>e.event_id===c.eventId);if(!e||seen.has(c.eventId)||!c.patch||Object.keys(c.patch).some(k=>!['event_type','team_side','player_id','is_voided'].includes(k)))throw Error('Invalid correction fields.');seen.add(c.eventId);const before=clone(e);Object.assign(e,c.patch);
-      if(!Object.hasOwn(types,e.event_type)||!['HOME','AWAY'].includes(e.team_side)||typeof e.is_voided!=='boolean')throw Error('Invalid statistical action.');
-      e.points_value=types[e.event_type];
-      if(e.team_side==='AWAY'){e.player_id='';e.player_name='';e.jersey_number='';}
-      else {const p=game.roster.find(p=>p.id===e.player_id&&(!game.squad||game.squad.includes(p.id)));if(!p)throw Error('Choose a player from this game squad.');e.player_name=p.name;e.jersey_number=p.number;}
-      audit.push({eventId:e.event_id,before,after:clone(e)});
+    const rows = new Map();
+    for (const id of game.squad) {
+      const p = game.roster.find((p) => p.id === id),
+        key = p.guest ? GUEST : id,
+        part = game.participation[id];
+      if (!rows.has(key))
+        rows.set(key, {
+          game_id: game.id,
+          game_date: game.date,
+          opponent: game.opponent,
+          revision: game.revision,
+          coverage: game.coverage,
+          player_id: key,
+          player_name: p.guest ? 'Guest Player' : p.name,
+          jersey_number: p.guest ? 0 : p.number,
+          designated_count: 0,
+          starter_count: 0,
+          played_count: 0,
+          played_ms: 0
+        });
+      const row = rows.get(key);
+      row.designated_count++;
+      row.starter_count += Number(game.starters.includes(id));
+      row.played_count += Number(part.played);
+      row.played_ms += part.playedMs;
     }
-    validateLinks(events,links);return {events,links:clone(links),changes:audit};
+    return encode(PART_COLUMNS, [...rows.values()]);
   }
-  const api={prepare,validateLinks};if(typeof module==='object'&&module.exports)module.exports=api;else root.EventCorrections=api;
+  function snapshotLineup(game) {
+    return {
+      status: game.lineup?.length === 5 ? 'complete' : game.lineup?.length ? 'partial' : 'unknown',
+      playerIds: [...(game.lineup || [])]
+    };
+  }
+  function validateSnapshot(game, snap) {
+    if (
+      !snap ||
+      !['complete', 'partial', 'unknown'].includes(snap.status) ||
+      !Array.isArray(snap.playerIds) ||
+      new Set(snap.playerIds).size !== snap.playerIds.length ||
+      snap.playerIds.some((id) => !(game.squad || game.roster.map((p) => p.id)).includes(id)) ||
+      snap.playerIds.length > 5 ||
+      (snap.status === 'complete' && snap.playerIds.length !== 5) ||
+      (snap.status === 'unknown' && snap.playerIds.length)
+    )
+      fail('Invalid event lineup snapshot.');
+  }
+  function validateGame(game) {
+    if (game.squad === undefined) return;
+    if (
+      !Array.isArray(game.squad) ||
+      game.squad.length < 5 ||
+      game.squad.length > 15 ||
+      new Set(game.squad).size !== game.squad.length ||
+      game.squad.some((id) => !game.roster.some((p) => p.id === id))
+    )
+      fail('Invalid saved game squad.');
+    checkFive(game, game.lineup);
+    if (
+      !['complete', 'partial'].includes(game.coverage) ||
+      !Array.isArray(game.starters) ||
+      (game.coverage === 'complete' ? game.starters.length !== 5 : game.starters.length !== 0) ||
+      new Set(game.starters).size !== game.starters.length ||
+      game.starters.some((id) => !game.squad.includes(id))
+    )
+      fail('Invalid saved starters or participation coverage.');
+    if (
+      !Number.isSafeInteger(game.revision) ||
+      game.revision < 1 ||
+      !game.participation ||
+      Object.keys(game.participation).length !== game.squad.length
+    )
+      fail('Invalid saved participation.');
+    for (const id of game.squad) {
+      const p = game.participation[id];
+      if (
+        !p ||
+        !Number.isSafeInteger(p.playedMs) ||
+        p.playedMs < 0 ||
+        typeof p.played !== 'boolean' ||
+        (p.playedMs > 0 && !p.played)
+      )
+        fail('Invalid saved player minutes.');
+    }
+    if (
+      game.running &&
+      (!Number.isFinite(game.timingAnchor) ||
+        game.timingAnchor > game.deadline ||
+        game.timingAnchor < game.deadline - game.remainingMs / (game.clockSpeed || 1) - 0.001)
+    )
+      fail('Invalid saved timing anchor.');
+  }
+  const api = {
+    GUEST,
+    ROSTER_COLUMNS,
+    PART_COLUMNS,
+    status,
+    validatePlayer,
+    rosterCSV,
+    parseRoster,
+    refreshPregameRoster,
+    applySharedRoster,
+    configure,
+    settle,
+    start,
+    substitute,
+    minutes,
+    exportEvent,
+    participationCSV,
+    validateGame,
+    snapshotLineup,
+    validateSnapshot,
+    assertMutable
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.TeamEngine = api;
 })(globalThis);
 
 (function (root) {
   'use strict';
-  const T=typeof module!=='undefined'&&module.exports?require('./team.js'):root.TeamEngine;
-  const C=typeof module!=='undefined'&&module.exports?require('./corrections.js'):root.EventCorrections;
-  function assertMutable(game){T.assertMutable(game);}
-  function finalize(game,now=Date.now()){if(!game.finished||game.running)throw Error('End the game before exporting final results.');if(!game.finalizedAt)game.finalizedAt=new Date(now).toISOString();}
-  function correctEvents(game,changes,links=game.eventLinks||[],now=Date.now()){
-    assertMutable(game);const result=C.prepare(game,changes,links,TYPES),id=uuid();
-    const audit={id,at:new Date(now).toISOString(),changes:result.changes,linksBefore:game.eventLinks||[],linksAfter:result.links};
-    game.gameEvents=result.events;game.eventLinks=result.links;(game.correctionAudit??=[]).push(audit);
-    for(const e of game.gameEvents)if(!e.is_voided&&e.team_side==='HOME'&&game.participation?.[e.player_id])game.participation[e.player_id].played=true;
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  function validateLinks(events, links) {
+    if (!Array.isArray(links)) throw Error('Invalid related actions.');
+    const linkedEventIds = new Set();
+    for (const link of links) {
+      const assist = events.find((event) => event.event_id === link.assistEventId),
+        shot = events.find((event) => event.event_id === link.shotEventId);
+      if (
+        !assist ||
+        !shot ||
+        assist.is_voided ||
+        shot.is_voided ||
+        assist.event_type !== 'ASSIST' ||
+        !['2PT_MADE', '3PT_MADE'].includes(shot.event_type) ||
+        assist.team_side !== shot.team_side ||
+        (assist.team_side === 'HOME' && assist.player_id === shot.player_id) ||
+        linkedEventIds.has(assist.event_id) ||
+        linkedEventIds.has(shot.event_id)
+      )
+        throw Error(
+          'Resolve linked assists: keep a valid made basket, or remove/unlink the assist.'
+        );
+      linkedEventIds.add(assist.event_id);
+      linkedEventIds.add(shot.event_id);
+    }
+  }
+  function prepare(game, changes, links, types) {
+    if (!Array.isArray(changes)) throw Error('Invalid corrections.');
+    // Validate a copy first so a rejected correction cannot partially change the game.
+    const events = clone(game.gameEvents),
+      changedEventIds = new Set(),
+      audit = [];
+    for (const change of changes) {
+      const event = events.find((event) => event.event_id === change.eventId);
+      if (
+        !event ||
+        changedEventIds.has(change.eventId) ||
+        !change.patch ||
+        Object.keys(change.patch).some(
+          (field) => !['event_type', 'team_side', 'player_id', 'is_voided'].includes(field)
+        )
+      )
+        throw Error('Invalid correction fields.');
+      changedEventIds.add(change.eventId);
+      const before = clone(event);
+      Object.assign(event, change.patch);
+      if (
+        !Object.hasOwn(types, event.event_type) ||
+        !['HOME', 'AWAY'].includes(event.team_side) ||
+        typeof event.is_voided !== 'boolean'
+      )
+        throw Error('Invalid statistical action.');
+      event.points_value = types[event.event_type];
+      if (event.team_side === 'AWAY') {
+        event.player_id = '';
+        event.player_name = '';
+        event.jersey_number = '';
+      } else {
+        const player = game.roster.find(
+          (player) =>
+            player.id === event.player_id && (!game.squad || game.squad.includes(player.id))
+        );
+        if (!player) throw Error('Choose a player from this game squad.');
+        event.player_name = player.name;
+        event.jersey_number = player.number;
+      }
+      audit.push({ eventId: event.event_id, before, after: clone(event) });
+    }
+    validateLinks(events, links);
+    return { events, links: clone(links), changes: audit };
+  }
+  const api = { prepare, validateLinks };
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.EventCorrections = api;
+})(globalThis);
+
+(function (root) {
+  'use strict';
+  const Team =
+    typeof module !== 'undefined' && module.exports ? require('./team.js') : root.TeamEngine;
+  const Corrections =
+    typeof module !== 'undefined' && module.exports
+      ? require('./corrections.js')
+      : root.EventCorrections;
+  function assertMutable(game) {
+    Team.assertMutable(game);
+  }
+  function finalize(game, now = Date.now()) {
+    if (!game.finished || game.running) throw Error('End the game before exporting final results.');
+    if (!game.finalizedAt) game.finalizedAt = new Date(now).toISOString();
+  }
+  function correctEvents(game, changes, links = game.eventLinks || [], now = Date.now()) {
+    assertMutable(game);
+    const result = Corrections.prepare(game, changes, links, TYPES),
+      id = uuid();
+    const audit = {
+      id,
+      at: new Date(now).toISOString(),
+      changes: result.changes,
+      linksBefore: game.eventLinks || [],
+      linksAfter: result.links
+    };
+    game.gameEvents = result.events;
+    game.eventLinks = result.links;
+    (game.correctionAudit ??= []).push(audit);
+    for (const e of game.gameEvents)
+      if (!e.is_voided && e.team_side === 'HOME' && game.participation?.[e.player_id])
+        game.participation[e.player_id].played = true;
     return id;
   }
-  function restoreDeletion(game,id,now=Date.now()){
-    assertMutable(game);const tx=game.correctionAudit?.find(t=>t.id===id);if(!tx||tx.restored)throw Error('This deletion cannot be restored.');
-    const changes=tx.changes.filter(c=>!c.before.is_voided&&c.after.is_voided);
-    if(!changes.length||changes.some(c=>JSON.stringify(game.gameEvents.find(e=>e.event_id===c.eventId))!==JSON.stringify(c.after)))throw Error('An action changed after deletion; restore would overwrite a correction.');
-    const ids=new Set(changes.map(c=>c.eventId));const links=[...(game.eventLinks||[]),...tx.linksBefore.filter(l=>(ids.has(l.assistEventId)||ids.has(l.shotEventId))&&!(game.eventLinks||[]).some(x=>x.assistEventId===l.assistEventId&&x.shotEventId===l.shotEventId))];
-    correctEvents(game,changes.map(c=>({eventId:c.eventId,patch:{is_voided:false}})),links,now);tx.restored=true;
+  function restoreDeletion(game, id, now = Date.now()) {
+    assertMutable(game);
+    const tx = game.correctionAudit?.find((t) => t.id === id);
+    if (!tx || tx.restored) throw Error('This deletion cannot be restored.');
+    const changes = tx.changes.filter((c) => !c.before.is_voided && c.after.is_voided);
+    if (
+      !changes.length ||
+      changes.some(
+        (c) =>
+          JSON.stringify(game.gameEvents.find((e) => e.event_id === c.eventId)) !==
+          JSON.stringify(c.after)
+      )
+    )
+      throw Error('An action changed after deletion; restore would overwrite a correction.');
+    const ids = new Set(changes.map((c) => c.eventId));
+    const links = [
+      ...(game.eventLinks || []),
+      ...tx.linksBefore.filter(
+        (l) =>
+          (ids.has(l.assistEventId) || ids.has(l.shotEventId)) &&
+          !(game.eventLinks || []).some(
+            (x) => x.assistEventId === l.assistEventId && x.shotEventId === l.shotEventId
+          )
+      )
+    ];
+    correctEvents(
+      game,
+      changes.map((c) => ({ eventId: c.eventId, patch: { is_voided: false } })),
+      links,
+      now
+    );
+    tx.restored = true;
   }
   const TYPES = Object.freeze({
-    '2PT_MADE': 2, '2PT_MISSED': 0, '3PT_MADE': 3, '3PT_MISSED': 0,
-    FT_MADE: 1, FT_MISSED: 0, OFF_REBOUND: 0, DEF_REBOUND: 0,
-    ASSIST: 0, STEAL: 0, BLOCK: 0, TURNOVER: 0, FOUL: 0
+    '2PT_MADE': 2,
+    '2PT_MISSED': 0,
+    '3PT_MADE': 3,
+    '3PT_MISSED': 0,
+    FT_MADE: 1,
+    FT_MISSED: 0,
+    OFF_REBOUND: 0,
+    DEF_REBOUND: 0,
+    ASSIST: 0,
+    STEAL: 0,
+    BLOCK: 0,
+    TURNOVER: 0,
+    FOUL: 0
   });
-  const COLUMNS = ['game_id','event_id','game_date','opponent','player_id','player_name','jersey_number','quarter','game_clock','event_type','points_value','recorded_at','team_side','is_voided'];
+  const COLUMNS = [
+    'game_id',
+    'event_id',
+    'game_date',
+    'opponent',
+    'player_id',
+    'player_name',
+    'jersey_number',
+    'quarter',
+    'game_clock',
+    'event_type',
+    'points_value',
+    'recorded_at',
+    'team_side',
+    'is_voided'
+  ];
   function uuid() {
-    if(typeof globalThis.crypto.randomUUID==='function')return globalThis.crypto.randomUUID();
-    const bytes=globalThis.crypto.getRandomValues(new Uint8Array(16));
-    bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
-    const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
-    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+    if (typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
   function createGame(config, roster) {
-    const {date, opponent, minutes, overtimeMinutes} = config;
-    const category=config.category??null;
-    if(category!==null&&!['official','friendly'].includes(category))throw Error('Choose an official or friendly game category.');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0,10) !== date) throw Error('Choose a valid game date.');
+    const { date, opponent, minutes, overtimeMinutes } = config;
+    const category = config.category ?? null;
+    if (category !== null && !['official', 'friendly'].includes(category))
+      throw Error('Choose an official or friendly game category.');
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(Date.parse(date)) ||
+      new Date(date).toISOString().slice(0, 10) !== date
+    )
+      throw Error('Choose a valid game date.');
     if (typeof opponent !== 'string' || !opponent.trim()) throw Error('Enter an opponent name.');
-    if (![minutes,overtimeMinutes].every(n => Number.isInteger(n) && n >= 1 && n <= 99)) throw Error('Period lengths must be whole minutes from 1 to 99.');
-    return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes, category,
-      quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,clockSpeed:1,
-      roster:roster.map(p=>({...p})), gameEvents:[]};
+    if (![minutes, overtimeMinutes].every((n) => Number.isInteger(n) && n >= 1 && n <= 99))
+      throw Error('Period lengths must be whole minutes from 1 to 99.');
+    return {
+      id: `G${date.replaceAll('-', '')}_${uuid()}`,
+      date,
+      opponent: opponent.trim(),
+      minutes,
+      overtimeMinutes,
+      category,
+      quarter: '1',
+      period: 1,
+      started: false,
+      finished: false,
+      running: false,
+      remainingMs: minutes * 60000,
+      deadline: null,
+      clockSpeed: 1,
+      roster: roster.map((p) => ({ ...p })),
+      gameEvents: []
+    };
   }
-  function remaining(game, now=Date.now()) { return Math.max(0,game.running ? Math.round((game.deadline-now)*(game.clockSpeed||1)) : game.remainingMs); }
-  function setSpeed(game,speed,now=Date.now()){
+  function remaining(game, now = Date.now()) {
+    return Math.max(
+      0,
+      game.running ? Math.round((game.deadline - now) * (game.clockSpeed || 1)) : game.remainingMs
+    );
+  }
+  function setSpeed(game, speed, now = Date.now()) {
     assertMutable(game);
-    if(![1,1.5,2,4].includes(speed))throw Error('Choose 1x, 1.5x, 2x or 4x speed.');
-    const running=game.running;if(running)pause(game,now);game.clockSpeed=speed;if(running&&game.remainingMs>0)start(game,now);
+    if (![1, 1.5, 2, 4].includes(speed)) throw Error('Choose 1x, 1.5x, 2x or 4x speed.');
+    const running = game.running;
+    if (running) pause(game, now);
+    game.clockSpeed = speed;
+    if (running && game.remainingMs > 0) start(game, now);
   }
-  function clock(game, now=Date.now()) {
-    const seconds=Math.ceil(remaining(game,now)/1000);
-    return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+  function clock(game, now = Date.now()) {
+    const seconds = Math.ceil(remaining(game, now) / 1000);
+    return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
   }
-  function start(game, now=Date.now()) {
+  function start(game, now = Date.now()) {
     assertMutable(game);
     if (game.finished) throw Error('Reopen the game before starting the clock.');
     if (game.running) return;
     if (game.remainingMs <= 0) throw Error('Advance the period or adjust the clock first.');
-    T.start(game,now);game.started=true; game.running=true; game.deadline=now+game.remainingMs/(game.clockSpeed||1);
+    Team.start(game, now);
+    game.started = true;
+    game.running = true;
+    game.deadline = now + game.remainingMs / (game.clockSpeed || 1);
   }
-  function pause(game, now=Date.now()) {assertMutable(game);T.settle(game,now);game.remainingMs=remaining(game,now); game.running=false; game.deadline=null;if(game.squad)game.timingAnchor=null;}
+  function pause(game, now = Date.now()) {
+    assertMutable(game);
+    Team.settle(game, now);
+    game.remainingMs = remaining(game, now);
+    game.running = false;
+    game.deadline = null;
+    if (game.squad) game.timingAnchor = null;
+  }
   function setClock(game, value) {
     assertMutable(game);
-    if(game.running) throw Error('Pause the clock before adjusting it.');
-    if(!/^\d{1,2}:[0-5]\d$/.test(value)) throw Error('Enter a time such as 06:31 (00:00–99:59).');
-    const [m,s]=value.split(':').map(Number); game.remainingMs=(m*60+s)*1000;
+    if (game.running) throw Error('Pause the clock before adjusting it.');
+    if (!/^\d{1,2}:[0-5]\d$/.test(value)) throw Error('Enter a time such as 06:31 (00:00–99:59).');
+    const [m, s] = value.split(':').map(Number);
+    game.remainingMs = (m * 60 + s) * 1000;
   }
   function nextPeriod(game) {
     assertMutable(game);
-    if(game.running) throw Error('Pause the clock before changing periods.');
-    if(game.finished) throw Error('Reopen the game before changing periods.');
-    game.period++; game.quarter=game.period<=4 ? String(game.period) : `OT${game.period-4}`;
-    game.remainingMs=(game.period<=4?game.minutes:game.overtimeMinutes)*60000; game.deadline=null;
+    if (game.running) throw Error('Pause the clock before changing periods.');
+    if (game.finished) throw Error('Reopen the game before changing periods.');
+    game.period++;
+    game.quarter = game.period <= 4 ? String(game.period) : `OT${game.period - 4}`;
+    game.remainingMs = (game.period <= 4 ? game.minutes : game.overtimeMinutes) * 60000;
+    game.deadline = null;
   }
-  function recordEvent(game,type,player,side='HOME',now=Date.now()) {
+  function recordEvent(game, type, player, side = 'HOME', now = Date.now()) {
     assertMutable(game);
-    if(!game.started || game.finished) throw Error('Start or reopen the game before recording stats.');
-    if(!Object.hasOwn(TYPES,type) || !['HOME','AWAY'].includes(side)) throw Error('Invalid stat action.');
-    if(side==='HOME' && (!player || !game.roster.some(p=>p.id===player.id))) throw Error('Select a player first.');
-    if(side==='HOME'&&game.lineup&&!game.lineup.includes(player.id))throw Error('Select a player currently on court.');
-    const p=side==='HOME'?game.roster.find(p=>p.id===player.id):null;
-    const event={game_id:game.id, event_id:(game.gameEvents.at(-1)?.event_id||0)+1,
-      game_date:game.date, opponent:game.opponent, player_id:p?.id??'', player_name:p?.name??'', jersey_number:p?.number??'',
-      quarter:game.quarter, game_clock:clock(game,now), event_type:type, points_value:TYPES[type], recorded_at:new Date(now).toISOString(),
-      team_side:side, is_voided:false,lineupSnapshot:T.snapshotLineup(game)};
+    if (!game.started || game.finished)
+      throw Error('Start or reopen the game before recording stats.');
+    if (!Object.hasOwn(TYPES, type) || !['HOME', 'AWAY'].includes(side))
+      throw Error('Invalid stat action.');
+    if (side === 'HOME' && (!player || !game.roster.some((p) => p.id === player.id)))
+      throw Error('Select a player first.');
+    if (side === 'HOME' && game.lineup && !game.lineup.includes(player.id))
+      throw Error('Select a player currently on court.');
+    const p = side === 'HOME' ? game.roster.find((p) => p.id === player.id) : null;
+    const event = {
+      game_id: game.id,
+      event_id: (game.gameEvents.at(-1)?.event_id || 0) + 1,
+      game_date: game.date,
+      opponent: game.opponent,
+      player_id: p?.id ?? '',
+      player_name: p?.name ?? '',
+      jersey_number: p?.number ?? '',
+      quarter: game.quarter,
+      game_clock: clock(game, now),
+      event_type: type,
+      points_value: TYPES[type],
+      recorded_at: new Date(now).toISOString(),
+      team_side: side,
+      is_voided: false,
+      lineupSnapshot: Team.snapshotLineup(game)
+    };
     game.gameEvents.push(event);
-    if(p&&game.participation?.[p.id])game.participation[p.id].played=true;
+    if (p && game.participation?.[p.id]) game.participation[p.id].played = true;
     return event;
   }
   function undo(game) {
-    assertMutable(game);const e=game.gameEvents.findLast(e=>!e.is_voided);if(!e)return null;
-    const ids=new Set([e.event_id,...(game.eventLinks||[]).filter(l=>l.shotEventId===e.event_id).map(l=>l.assistEventId)]);
-    correctEvents(game,[...ids].map(eventId=>({eventId,patch:{is_voided:true}})),(game.eventLinks||[]).filter(l=>!ids.has(l.assistEventId)&&!ids.has(l.shotEventId)));
-    return game.gameEvents.find(x=>x.event_id===e.event_id);
+    assertMutable(game);
+    const e = game.gameEvents.findLast((e) => !e.is_voided);
+    if (!e) return null;
+    const ids = new Set([
+      e.event_id,
+      ...(game.eventLinks || [])
+        .filter((l) => l.shotEventId === e.event_id)
+        .map((l) => l.assistEventId)
+    ]);
+    correctEvents(
+      game,
+      [...ids].map((eventId) => ({ eventId, patch: { is_voided: true } })),
+      (game.eventLinks || []).filter((l) => !ids.has(l.assistEventId) && !ids.has(l.shotEventId))
+    );
+    return game.gameEvents.find((x) => x.event_id === e.event_id);
   }
-  function stats(game,side,playerId) {
-    const s={points:0,fgm:0,fga:0,twoMade:0,twoAttempts:0,threeMade:0,threeAttempts:0,ftm:0,fta:0,offensive:0,defensive:0,rebounds:0,assists:0,steals:0,blocks:0,turnovers:0,fouls:0};
-    const mapping={OFF_REBOUND:'offensive',DEF_REBOUND:'defensive',ASSIST:'assists',STEAL:'steals',BLOCK:'blocks',TURNOVER:'turnovers',FOUL:'fouls'};
-    for(const e of game.gameEvents) {
-      if(e.is_voided||e.team_side!==side||(playerId!==undefined&&e.player_id!==playerId))continue;
-      s.points+=e.points_value;
-      if(e.event_type.startsWith('2PT_')){s.twoAttempts++;s.fga++;if(e.event_type==='2PT_MADE'){s.twoMade++;s.fgm++;}}
-      else if(e.event_type.startsWith('3PT_')){s.threeAttempts++;s.fga++;if(e.event_type==='3PT_MADE'){s.threeMade++;s.fgm++;}}
-      else if(e.event_type.startsWith('FT_')){s.fta++;if(e.event_type==='FT_MADE')s.ftm++;}
-      else if(mapping[e.event_type])s[mapping[e.event_type]]++;
+  function stats(game, side, playerId) {
+    const s = {
+      points: 0,
+      fgm: 0,
+      fga: 0,
+      twoMade: 0,
+      twoAttempts: 0,
+      threeMade: 0,
+      threeAttempts: 0,
+      ftm: 0,
+      fta: 0,
+      offensive: 0,
+      defensive: 0,
+      rebounds: 0,
+      assists: 0,
+      steals: 0,
+      blocks: 0,
+      turnovers: 0,
+      fouls: 0
+    };
+    const mapping = {
+      OFF_REBOUND: 'offensive',
+      DEF_REBOUND: 'defensive',
+      ASSIST: 'assists',
+      STEAL: 'steals',
+      BLOCK: 'blocks',
+      TURNOVER: 'turnovers',
+      FOUL: 'fouls'
+    };
+    for (const e of game.gameEvents) {
+      if (
+        e.is_voided ||
+        e.team_side !== side ||
+        (playerId !== undefined && e.player_id !== playerId)
+      )
+        continue;
+      s.points += e.points_value;
+      if (e.event_type.startsWith('2PT_')) {
+        s.twoAttempts++;
+        s.fga++;
+        if (e.event_type === '2PT_MADE') {
+          s.twoMade++;
+          s.fgm++;
+        }
+      } else if (e.event_type.startsWith('3PT_')) {
+        s.threeAttempts++;
+        s.fga++;
+        if (e.event_type === '3PT_MADE') {
+          s.threeMade++;
+          s.fgm++;
+        }
+      } else if (e.event_type.startsWith('FT_')) {
+        s.fta++;
+        if (e.event_type === 'FT_MADE') s.ftm++;
+      } else if (mapping[e.event_type]) s[mapping[e.event_type]]++;
     }
-    s.rebounds=s.offensive+s.defensive; return s;
+    s.rebounds = s.offensive + s.defensive;
+    return s;
   }
   function csv(game) {
-    const escape=v=> /[",\r\n]/.test(String(v)) ? '"'+String(v).replaceAll('"','""')+'"' : String(v);
-    return '\uFEFF'+COLUMNS.join(',')+'\r\n'+game.gameEvents.map(original=>{const e=T.exportEvent(game,original);return COLUMNS.map(c=>escape(e[c])).join(',')+'\r\n';}).join('');
+    const escape = (v) =>
+      /[",\r\n]/.test(String(v)) ? '"' + String(v).replaceAll('"', '""') + '"' : String(v);
+    return (
+      '\uFEFF' +
+      COLUMNS.join(',') +
+      '\r\n' +
+      game.gameEvents
+        .map((original) => {
+          const e = Team.exportEvent(game, original);
+          return COLUMNS.map((c) => escape(e[c])).join(',') + '\r\n';
+        })
+        .join('')
+    );
   }
   function validateState(state) {
-    const check=(ok)=>{if(!ok)throw Error('This is not a valid CourtSide backup. Your current data has not been replaced.');};
-    const str=x=>typeof x==='string'&&x.length>0;
-    const roster=rs=>{
-      check(Array.isArray(rs)); const ids=new Set();
-      for(const p of rs){check(p&&str(p.id)&&str(p.name)&&Number.isInteger(p.number)&&p.number>=0&&p.number<=99&&!ids.has(p.id));T.validatePlayer(p);ids.add(p.id);}
+    const check = (ok) => {
+      if (!ok)
+        throw Error(
+          'This is not a valid CourtSide backup. Your current data has not been replaced.'
+        );
     };
-    check(state&&state.version===2&&Array.isArray(state.games)); roster(state.roster);
-    if(state.localRosterArchive!==undefined)roster(state.localRosterArchive);
-    const ids=new Set();
-    for(const g of state.games){
-      check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);
-      T.validateGame(g);
-      check(g.finalizedAt===undefined||(g.finished&&!g.running&&typeof g.finalizedAt==='string'&&Number.isFinite(Date.parse(g.finalizedAt))));
-      if(g.eventLinks!==undefined)C.validateLinks(g.gameEvents,g.eventLinks);
-      if(g.correctionAudit!==undefined)check(Array.isArray(g.correctionAudit)&&g.correctionAudit.every(t=>t&&typeof t.id==='string'&&Array.isArray(t.changes)&&Array.isArray(t.linksBefore)&&Array.isArray(t.linksAfter)&&t.changes.every(c=>g.gameEvents.some(e=>e.event_id===c.eventId)&&c.before?.event_id===c.eventId&&c.after?.event_id===c.eventId)));
-      check(g.clockSpeed===undefined||[1,1.5,2,4].includes(g.clockSpeed));
-      check(typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Number.isFinite(Date.parse(g.date))&&new Date(g.date).toISOString().slice(0,10)===g.date&&str(g.opponent));
-      check(g.category==null||['official','friendly'].includes(g.category));
-      check([g.minutes,g.overtimeMinutes].every(n=>Number.isInteger(n)&&n>=1&&n<=99));
-      check(Number.isInteger(g.period)&&g.period>=1&&g.quarter===(g.period<=4?String(g.period):`OT${g.period-4}`));
-      check(['started','finished','running'].every(k=>typeof g[k]==='boolean')&&!(g.finished&&g.running)&&(!g.running||g.started));
-      check(Number.isFinite(g.remainingMs)&&g.remainingMs>=0&&g.remainingMs<=5999000&&(g.running?Number.isFinite(g.deadline):g.deadline===null));
-      check(Array.isArray(g.gameEvents)); let previous=0;
-      for(const e of g.gameEvents){
-        if(e.lineupSnapshot!==undefined)T.validateSnapshot(g,e.lineupSnapshot);
-        check(e&&COLUMNS.every(c=>Object.hasOwn(e,c))&&Number.isInteger(e.event_id)&&e.event_id>previous);previous=e.event_id;
-        check(e.game_id===g.id&&e.game_date===g.date&&e.opponent===g.opponent&&Object.hasOwn(TYPES,e.event_type)&&e.points_value===TYPES[e.event_type]&&typeof e.is_voided==='boolean');
-        check(['HOME','AWAY'].includes(e.team_side)&&typeof e.quarter==='string'&&/^(?:[1-4]|OT[1-9]\d*)$/.test(e.quarter)&&typeof e.game_clock==='string'&&/^\d{2}:[0-5]\d$/.test(e.game_clock));
-        check(typeof e.recorded_at==='string'&&Number.isFinite(Date.parse(e.recorded_at)));
-        if(e.team_side==='HOME')check(g.roster.some(p=>p.id===e.player_id)&&str(e.player_name)&&Number.isInteger(e.jersey_number)&&e.jersey_number>=0&&e.jersey_number<=99);
-        else check(e.player_id===''&&e.player_name===''&&e.jersey_number==='');
+    const str = (x) => typeof x === 'string' && x.length > 0;
+    const roster = (rs) => {
+      check(Array.isArray(rs));
+      const ids = new Set();
+      for (const p of rs) {
+        check(
+          p &&
+            str(p.id) &&
+            str(p.name) &&
+            Number.isInteger(p.number) &&
+            p.number >= 0 &&
+            p.number <= 99 &&
+            !ids.has(p.id)
+        );
+        Team.validatePlayer(p);
+        ids.add(p.id);
+      }
+    };
+    check(state && state.version === 2 && Array.isArray(state.games));
+    roster(state.roster);
+    if (state.localRosterArchive !== undefined) roster(state.localRosterArchive);
+    const ids = new Set();
+    for (const g of state.games) {
+      check(g && str(g.id) && !ids.has(g.id));
+      ids.add(g.id);
+      roster(g.roster);
+      Team.validateGame(g);
+      check(
+        g.finalizedAt === undefined ||
+          (g.finished &&
+            !g.running &&
+            typeof g.finalizedAt === 'string' &&
+            Number.isFinite(Date.parse(g.finalizedAt)))
+      );
+      if (g.eventLinks !== undefined) Corrections.validateLinks(g.gameEvents, g.eventLinks);
+      if (g.correctionAudit !== undefined)
+        check(
+          Array.isArray(g.correctionAudit) &&
+            g.correctionAudit.every(
+              (t) =>
+                t &&
+                typeof t.id === 'string' &&
+                Array.isArray(t.changes) &&
+                Array.isArray(t.linksBefore) &&
+                Array.isArray(t.linksAfter) &&
+                t.changes.every(
+                  (c) =>
+                    g.gameEvents.some((e) => e.event_id === c.eventId) &&
+                    c.before?.event_id === c.eventId &&
+                    c.after?.event_id === c.eventId
+                )
+            )
+        );
+      check(g.clockSpeed === undefined || [1, 1.5, 2, 4].includes(g.clockSpeed));
+      check(
+        typeof g.date === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(g.date) &&
+          Number.isFinite(Date.parse(g.date)) &&
+          new Date(g.date).toISOString().slice(0, 10) === g.date &&
+          str(g.opponent)
+      );
+      check(g.category == null || ['official', 'friendly'].includes(g.category));
+      check([g.minutes, g.overtimeMinutes].every((n) => Number.isInteger(n) && n >= 1 && n <= 99));
+      check(
+        Number.isInteger(g.period) &&
+          g.period >= 1 &&
+          g.quarter === (g.period <= 4 ? String(g.period) : `OT${g.period - 4}`)
+      );
+      check(
+        ['started', 'finished', 'running'].every((k) => typeof g[k] === 'boolean') &&
+          !(g.finished && g.running) &&
+          (!g.running || g.started)
+      );
+      check(
+        Number.isFinite(g.remainingMs) &&
+          g.remainingMs >= 0 &&
+          g.remainingMs <= 5999000 &&
+          (g.running ? Number.isFinite(g.deadline) : g.deadline === null)
+      );
+      check(Array.isArray(g.gameEvents));
+      let previous = 0;
+      for (const e of g.gameEvents) {
+        if (e.lineupSnapshot !== undefined) Team.validateSnapshot(g, e.lineupSnapshot);
+        check(
+          e &&
+            COLUMNS.every((c) => Object.hasOwn(e, c)) &&
+            Number.isInteger(e.event_id) &&
+            e.event_id > previous
+        );
+        previous = e.event_id;
+        check(
+          e.game_id === g.id &&
+            e.game_date === g.date &&
+            e.opponent === g.opponent &&
+            Object.hasOwn(TYPES, e.event_type) &&
+            e.points_value === TYPES[e.event_type] &&
+            typeof e.is_voided === 'boolean'
+        );
+        check(
+          ['HOME', 'AWAY'].includes(e.team_side) &&
+            typeof e.quarter === 'string' &&
+            /^(?:[1-4]|OT[1-9]\d*)$/.test(e.quarter) &&
+            typeof e.game_clock === 'string' &&
+            /^\d{2}:[0-5]\d$/.test(e.game_clock)
+        );
+        check(typeof e.recorded_at === 'string' && Number.isFinite(Date.parse(e.recorded_at)));
+        if (e.team_side === 'HOME')
+          check(
+            g.roster.some((p) => p.id === e.player_id) &&
+              str(e.player_name) &&
+              Number.isInteger(e.jersey_number) &&
+              e.jersey_number >= 0 &&
+              e.jersey_number <= 99
+          );
+        else check(e.player_id === '' && e.player_name === '' && e.jersey_number === '');
       }
     }
-    check(state.currentGameId===null||ids.has(state.currentGameId)); return true;
+    check(state.currentGameId === null || ids.has(state.currentGameId));
+    return true;
   }
-  function backup(state,now=Date.now()) {
-    const snapshot=JSON.parse(JSON.stringify(state));
-    for(const game of snapshot.games)if(game.running)pause(game,now);
+  function backup(state, now = Date.now()) {
+    const snapshot = JSON.parse(JSON.stringify(state));
+    for (const game of snapshot.games) if (game.running) pause(game, now);
     return snapshot;
   }
-  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,setSpeed,nextPeriod,recordEvent,undo,stats,csv,validateState,backup,assertMutable,finalize,correctEvents,restoreDeletion};
-  if(typeof module!=='undefined'&&module.exports)module.exports=api; else root.ScoreEngine=api;
+  const api = {
+    TYPES,
+    COLUMNS,
+    uuid,
+    createGame,
+    remaining,
+    clock,
+    start,
+    pause,
+    setClock,
+    setSpeed,
+    nextPeriod,
+    recordEvent,
+    undo,
+    stats,
+    csv,
+    validateState,
+    backup,
+    assertMutable,
+    finalize,
+    correctEvents,
+    restoreDeletion
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.ScoreEngine = api;
 })(globalThis);
 
-(function(root){
+(function (root) {
   'use strict';
-  const E=typeof module==='object'&&module.exports?require('./engine.js'):root.ScoreEngine;
-  const ratio=(a,b,scale=1)=>b?scale*a/b:null;
-  function player(game,id){
-    const s=E.stats(game,'HOME',id);let plusMinus=0,plusMinusStatus='complete';
-    for(const e of game.gameEvents){
-      if(e.is_voided||!e.points_value)continue;
-      const snap=e.lineupSnapshot;
-      if(!snap||snap.status!=='complete'){plusMinusStatus=snap?.status==='partial'&&plusMinusStatus!=='unknown'?'partial':'unknown';continue;}
-      if(snap.playerIds.includes(id))plusMinus+=(e.team_side==='HOME'?1:-1)*e.points_value;
+  const Engine =
+    typeof module === 'object' && module.exports ? require('./engine.js') : root.ScoreEngine;
+  const ratio = (numerator, denominator, scale = 1) =>
+    denominator ? (scale * numerator) / denominator : null;
+  function player(game, id) {
+    const stats = Engine.stats(game, 'HOME', id);
+    let plusMinus = 0,
+      plusMinusStatus = 'complete';
+    for (const event of game.gameEvents) {
+      if (event.is_voided || !event.points_value) continue;
+      const lineup = event.lineupSnapshot;
+      if (!lineup || lineup.status !== 'complete') {
+        // Once any scoring lineup is unknown, later partial coverage cannot repair it.
+        if (lineup?.status === 'partial' && plusMinusStatus !== 'unknown') {
+          plusMinusStatus = 'partial';
+        } else {
+          plusMinusStatus = 'unknown';
+        }
+        continue;
+      }
+      if (lineup.playerIds.includes(id))
+        plusMinus += (event.team_side === 'HOME' ? 1 : -1) * event.points_value;
     }
-    return {fgPct:ratio(s.fgm,s.fga,100),threePct:ratio(s.threeMade,s.threeAttempts,100),ftPct:ratio(s.ftm,s.fta,100),efgPct:ratio(s.fgm+.5*s.threeMade,s.fga,100),tsPct:ratio(s.points,2*(s.fga+.44*s.fta),100),astTo:ratio(s.assists,s.turnovers),plusMinus:plusMinusStatus==='complete'?plusMinus:null,plusMinusStatus};
+    return {
+      fgPct: ratio(stats.fgm, stats.fga, 100),
+      threePct: ratio(stats.threeMade, stats.threeAttempts, 100),
+      ftPct: ratio(stats.ftm, stats.fta, 100),
+      efgPct: ratio(stats.fgm + 0.5 * stats.threeMade, stats.fga, 100),
+      tsPct: ratio(stats.points, 2 * (stats.fga + 0.44 * stats.fta), 100),
+      astTo: ratio(stats.assists, stats.turnovers),
+      plusMinus: plusMinusStatus === 'complete' ? plusMinus : null,
+      plusMinusStatus
+    };
   }
-  function csv(game){
-    const columns=['player_id','player_name','jersey_number','points','fgm','fga','threeMade','threeAttempts','ftm','fta','rebounds','assists','steals','blocks','turnovers','fouls','fgPct','threePct','ftPct','efgPct','tsPct','astTo','plusMinus','plus_minus_status'];
-    const escape=v=>/[",\r\n]/.test(String(v??''))?'"'+String(v).replaceAll('"','""')+'"':String(v??'');
-    const rows=game.roster.filter(p=>!game.squad||game.squad.includes(p.id)).map(p=>{const a=player(game,p.id);return {player_id:p.id,player_name:p.name,jersey_number:p.number,...E.stats(game,'HOME',p.id),...a,plus_minus_status:a.plusMinusStatus};});
-    return '\uFEFF'+columns.join(',')+'\r\n'+rows.map(r=>columns.map(k=>escape(r[k])).join(',')+'\r\n').join('');
+  function csv(game) {
+    const columns = [
+      'player_id',
+      'player_name',
+      'jersey_number',
+      'points',
+      'fgm',
+      'fga',
+      'threeMade',
+      'threeAttempts',
+      'ftm',
+      'fta',
+      'rebounds',
+      'assists',
+      'steals',
+      'blocks',
+      'turnovers',
+      'fouls',
+      'fgPct',
+      'threePct',
+      'ftPct',
+      'efgPct',
+      'tsPct',
+      'astTo',
+      'plusMinus',
+      'plus_minus_status'
+    ];
+    const escape = (value) =>
+      /[",\r\n]/.test(String(value ?? ''))
+        ? '"' + String(value).replaceAll('"', '""') + '"'
+        : String(value ?? '');
+    const rows = game.roster
+      .filter((rosterPlayer) => !game.squad || game.squad.includes(rosterPlayer.id))
+      .map((rosterPlayer) => {
+        const analytics = player(game, rosterPlayer.id);
+        return {
+          player_id: rosterPlayer.id,
+          player_name: rosterPlayer.name,
+          jersey_number: rosterPlayer.number,
+          ...Engine.stats(game, 'HOME', rosterPlayer.id),
+          ...analytics,
+          plus_minus_status: analytics.plusMinusStatus
+        };
+      });
+    return (
+      '\uFEFF' +
+      columns.join(',') +
+      '\r\n' +
+      rows.map((row) => columns.map((column) => escape(row[column])).join(',') + '\r\n').join('')
+    );
   }
-  const api={player,csv};if(typeof module==='object'&&module.exports)module.exports=api;else root.PlayerAnalytics=api;
+  const api = { player, csv };
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.PlayerAnalytics = api;
 })(globalThis);
 
-(function(root){
- 'use strict';const E=typeof module==='object'&&module.exports?require('./engine.js'):root.ScoreEngine;
- function exportGame(game,prepare,persist,download){
-   if(!game.finished)throw Error('End the game before exporting final results.');
-   const content=prepare();
-   if(!game.finalizedAt){E.finalize(game);try{persist();}catch(error){delete game.finalizedAt;throw error;}}
-   download(content);
- }
- const api={exportGame};if(typeof module==='object'&&module.exports)module.exports=api;else root.ResultExport=api;
+(function (root) {
+  'use strict';
+  const Engine =
+    typeof module === 'object' && module.exports ? require('./engine.js') : root.ScoreEngine;
+  function exportGame(game, prepare, persist, download) {
+    if (!game.finished) throw Error('End the game before exporting final results.');
+    const content = prepare();
+    if (!game.finalizedAt) {
+      // Save the edit lock before handing a final result to the user.
+      Engine.finalize(game);
+      try {
+        persist();
+      } catch (error) {
+        // A failed save must leave the game editable and must not download a result.
+        delete game.finalizedAt;
+        throw error;
+      }
+    }
+    download(content);
+  }
+  const api = { exportGame };
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.ResultExport = api;
 })(globalThis);
 
 globalThis.DEFAULT_ROSTER = [
-                { name: "牛天齐", number: 91 },
-                { name: "金震环", number: 11 },
-                { name: "徐孟琨", number: 5 },
-                { name: "宋睿", number: 3 },
-                { name: "张宇墨", number: 4 },
-                { name: "宋坤余", number: 14 },
-                { name: "张宇璠", number: 17 },
-                { name: "王楷汶", number: 18 },
-                { name: "高宇童", number: 10 },
-                { name: "王子尧", number: 0 },
-                { name: "李冠震", number: 7 },
-                { name: "叶慕阳", number: 2 },
-                { name: "黄天畅", number: 33 },
-                { name: "张天宇", number: 13 },
-                { name: "王轩浩", number: 23 },
-                { name: "武弘健", number: 20 },
-                { name: "马浚哲", number: 6 },
-                { name: "陈昕睿", number: 16 },
-                { name: "鄢焕章", number: 77 },
-                { name: "刘卓飞", number: 1 },
-                { name: "邵博宣", number: 8 },
-                { name: "李昊男", number: 30 },
-                { name: "郑岩昆", number: 22 },
-                { name: "左一博", number: 12 },
-                { name: "于牛牛", number: 69 },
-                { name: "方梓旭", number: 24 },
-                { name: "王世峣", number: 32 }
-            ];
+  { name: '牛天齐', number: 91 },
+  { name: '金震环', number: 11 },
+  { name: '徐孟琨', number: 5 },
+  { name: '宋睿', number: 3 },
+  { name: '张宇墨', number: 4 },
+  { name: '宋坤余', number: 14 },
+  { name: '张宇璠', number: 17 },
+  { name: '王楷汶', number: 18 },
+  { name: '高宇童', number: 10 },
+  { name: '王子尧', number: 0 },
+  { name: '李冠震', number: 7 },
+  { name: '叶慕阳', number: 2 },
+  { name: '黄天畅', number: 33 },
+  { name: '张天宇', number: 13 },
+  { name: '王轩浩', number: 23 },
+  { name: '武弘健', number: 20 },
+  { name: '马浚哲', number: 6 },
+  { name: '陈昕睿', number: 16 },
+  { name: '鄢焕章', number: 77 },
+  { name: '刘卓飞', number: 1 },
+  { name: '邵博宣', number: 8 },
+  { name: '李昊男', number: 30 },
+  { name: '郑岩昆', number: 22 },
+  { name: '左一博', number: 12 },
+  { name: '于牛牛', number: 69 },
+  { name: '方梓旭', number: 24 },
+  { name: '王世峣', number: 32 }
+];
 
-(function(root){
-'use strict';
-const statKeys=['points','fgm','fga','threeMade','threeAttempts','ftm','fta','offensive','defensive','rebounds','assists','steals','blocks','turnovers','fouls'];
-function csv(columns,rows){const escape=v=>/[",\r\n]/.test(String(v??''))?'"'+String(v??'').replaceAll('"','""')+'"':String(v??'');return '\uFEFF'+columns.join(',')+'\r\n'+rows.map(r=>columns.map(k=>escape(r[k])).join(',')+'\r\n').join('');}
-function parseCSV(text){
-  text=String(text).replace(/^\uFEFF/,'');const records=[];let row=[],value='',quoted=false,closed=false;
-  for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'){if(text[i+1]==='"'){value+='"';i++;}else{quoted=false;closed=true;}}else value+=c;}
-    else if(c==='"'){if(value||closed)throw Error('Invalid CSV quotation.');quoted=true;}
-    else if(c===','){row.push(value);value='';closed=false;}
-    else if(c==='\r'||c==='\n'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);records.push(row);row=[];value='';closed=false;}
-    else{if(closed)throw Error('Invalid CSV after quote.');value+=c;}
+(function (root) {
+  'use strict';
+  const statKeys = [
+    'points',
+    'fgm',
+    'fga',
+    'threeMade',
+    'threeAttempts',
+    'ftm',
+    'fta',
+    'offensive',
+    'defensive',
+    'rebounds',
+    'assists',
+    'steals',
+    'blocks',
+    'turnovers',
+    'fouls'
+  ];
+  function csv(columns, rows) {
+    const escape = (v) =>
+      /[",\r\n]/.test(String(v ?? ''))
+        ? '"' + String(v ?? '').replaceAll('"', '""') + '"'
+        : String(v ?? '');
+    return (
+      '\uFEFF' +
+      columns.join(',') +
+      '\r\n' +
+      rows.map((r) => columns.map((k) => escape(r[k])).join(',') + '\r\n').join('')
+    );
   }
-  if(quoted)throw Error('Unclosed CSV quotation.');if(value||row.length||closed){row.push(value);records.push(row);}
-  const columns=records.shift()||[];if(!columns.length||new Set(columns).size!==columns.length)throw Error('Invalid CSV headers.');
-  return {columns,rows:records.map(r=>{if(r.length!==columns.length)throw Error('Invalid CSV field count.');return Object.fromEntries(columns.map((c,i)=>[c,r[i]]));})};
-}
-function prepare(game,E,T,options={}){
-  if(!game?.finished)throw Error('Finish this game before uploading.');
-  if(game.remote?.payload)return game.remote.payload;
-  const payload={schema_version:2,finished:true,events_csv:E.csv(game),participation_csv:T.participationCSV(game),lineups:{version:1,snapshots:game.gameEvents.map(e=>({event_id:e.event_id,status:e.lineupSnapshot?.status||'unknown',members:(e.lineupSnapshot?.playerIds||[]).map(id=>({local_player_id:id,player_id:game.roster.find(p=>p.id===id)?.guest?T.GUEST:id}))}))}};
-  const parts=parseCSV(payload.participation_csv).rows;
-  const duration=parts.every(p=>p.coverage==='complete')?Math.round(parts.reduce((n,p)=>n+Number(p.played_ms),0)/5):null;
-  payload.game_details={category:game.category??null,duration_ms:duration>0&&duration<=86400000?duration:null,stats_complete:options.statsComplete===true};
-  game.remote={state:'pending',payload};return payload;
-}
-function begin(game){const prior=Boolean(game.remote?.uncertain);game.remote.uncertain=true;return prior;}
-function failed(game,error,priorUncertainty=Boolean(game.remote?.uncertain)){
-  if(!game.remote)return;
-  if([400,401,403,413,429].includes(error.status)&&!priorUncertainty){delete game.remote;return;}
-  game.remote.uncertain=true;
-}
-class Client{
-  constructor(base,transport=root.fetch?.bind(root)){
-    let url;try{url=new URL(base);}catch{throw Error('Configure a valid backend URL.');}
-    if(url.username||url.password||url.search||url.hash)throw Error('Backend URL must not contain credentials, a query, or a fragment.');
-    if(url.protocol!=='https:'&&!(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('Use HTTPS for the backend URL.');
-    this.base=url.href.replace(/\/$/,'');this.transport=transport;this.token=null;
+  function parseCSV(text) {
+    text = String(text).replace(/^\uFEFF/, '');
+    const records = [];
+    let row = [],
+      value = '',
+      quoted = false,
+      closed = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            value += '"';
+            i++;
+          } else {
+            quoted = false;
+            closed = true;
+          }
+        } else value += c;
+      } else if (c === '"') {
+        if (value || closed) throw Error('Invalid CSV quotation.');
+        quoted = true;
+      } else if (c === ',') {
+        row.push(value);
+        value = '';
+        closed = false;
+      } else if (c === '\r' || c === '\n') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(value);
+        records.push(row);
+        row = [];
+        value = '';
+        closed = false;
+      } else {
+        if (closed) throw Error('Invalid CSV after quote.');
+        value += c;
+      }
+    }
+    if (quoted) throw Error('Unclosed CSV quotation.');
+    if (value || row.length || closed) {
+      row.push(value);
+      records.push(row);
+    }
+    const columns = records.shift() || [];
+    if (!columns.length || new Set(columns).size !== columns.length)
+      throw Error('Invalid CSV headers.');
+    return {
+      columns,
+      rows: records.map((r) => {
+        if (r.length !== columns.length) throw Error('Invalid CSV field count.');
+        return Object.fromEntries(columns.map((c, i) => [c, r[i]]));
+      })
+    };
   }
-  async request(path,method='GET',body,timeoutMs=240000){
-    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
-    try{
-      const response=await this.transport(this.base+path,{method,headers:{'Content-Type':'application/json',...(this.token?{Authorization:'Bearer '+this.token}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:controller.signal,cache:'no-store'});
-      let data;try{data=await response.json();}catch{throw Error('The backend is starting or unavailable. Your data is safe; try again shortly.');}
-      if(!response.ok){const error=Error(data.error||'Request failed.');error.status=response.status;if(response.status===401)this.token=null;throw error;}
+  function prepare(game, Engine, Team, options = {}) {
+    if (!game?.finished) throw Error('Finish this game before uploading.');
+    if (game.remote?.payload) return game.remote.payload;
+    const payload = {
+      schema_version: 2,
+      finished: true,
+      events_csv: Engine.csv(game),
+      participation_csv: Team.participationCSV(game),
+      lineups: {
+        version: 1,
+        snapshots: game.gameEvents.map((e) => ({
+          event_id: e.event_id,
+          status: e.lineupSnapshot?.status || 'unknown',
+          members: (e.lineupSnapshot?.playerIds || []).map((id) => ({
+            local_player_id: id,
+            player_id: game.roster.find((p) => p.id === id)?.guest ? Team.GUEST : id
+          }))
+        }))
+      }
+    };
+    const parts = parseCSV(payload.participation_csv).rows;
+    const duration = parts.every((p) => p.coverage === 'complete')
+      ? Math.round(parts.reduce((n, p) => n + Number(p.played_ms), 0) / 5)
+      : null;
+    payload.game_details = {
+      category: game.category ?? null,
+      duration_ms: duration > 0 && duration <= 86400000 ? duration : null,
+      stats_complete: options.statsComplete === true
+    };
+    game.remote = { state: 'pending', payload };
+    return payload;
+  }
+  function begin(game) {
+    const prior = Boolean(game.remote?.uncertain);
+    game.remote.uncertain = true;
+    return prior;
+  }
+  function failed(game, error, priorUncertainty = Boolean(game.remote?.uncertain)) {
+    if (!game.remote) return;
+    if ([400, 401, 403, 413, 429].includes(error.status) && !priorUncertainty) {
+      delete game.remote;
+      return;
+    }
+    game.remote.uncertain = true;
+  }
+  class Client {
+    constructor(base, transport = root.fetch?.bind(root)) {
+      let url;
+      try {
+        url = new URL(base);
+      } catch {
+        throw Error('Configure a valid backend URL.');
+      }
+      if (url.username || url.password || url.search || url.hash)
+        throw Error('Backend URL must not contain credentials, a query, or a fragment.');
+      if (
+        url.protocol !== 'https:' &&
+        !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
+      )
+        throw Error('Use HTTPS for the backend URL.');
+      this.base = url.href.replace(/\/$/, '');
+      this.transport = transport;
+      this.token = null;
+    }
+    async request(path, method = 'GET', body, timeoutMs = 240000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await this.transport(this.base + path, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.token ? { Authorization: 'Bearer ' + this.token } : {})
+          },
+          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          throw Error(
+            'The backend is starting or unavailable. Your data is safe; try again shortly.'
+          );
+        }
+        if (!response.ok) {
+          const error = Error(data.error || 'Request failed.');
+          error.status = response.status;
+          if (response.status === 401) this.token = null;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error.name === 'AbortError')
+          throw Error(
+            path === '/api/roster'
+              ? 'The roster check timed out. The saved roster was kept.'
+              : 'The upload timed out. Your game remains saved; retry to check whether it was received.'
+          );
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async login(pin, role) {
+      const data = await this.request('/api/session', 'POST', { pin, role });
+      this.token = data.token;
       return data;
-    }catch(error){if(error.name==='AbortError')throw Error(path==='/api/roster'?'The roster check timed out. The saved roster was kept.':'The upload timed out. Your game remains saved; retry to check whether it was received.');throw error;}
-    finally{clearTimeout(timer);}
+    }
+    upload(payload) {
+      return this.request('/api/games', 'POST', payload);
+    }
   }
-  async login(pin,role){const data=await this.request('/api/session','POST',{pin,role});this.token=data.token;return data;}
-  upload(payload){return this.request('/api/games','POST',payload);}
-}
-function totals(snapshot){
-  const players=new Map((snapshot.roster||[]).map(p=>[p.player_id,{...p,appearances:0,played_ms:null,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))}]));
-  let wins=0,losses=0,ties=0;
-  for(const g of snapshot.games||[]){if(g.home_points>g.away_points)wins++;else if(g.home_points<g.away_points)losses++;else ties++;
-    for(const p of g.players||[]){if(!players.has(p.player_id))players.set(p.player_id,{...p,appearances:0,played_ms:null,partial:false,stats:Object.fromEntries(statKeys.map(k=>[k,0]))});const total=players.get(p.player_id);total.appearances+=Number(p.played_count||0);if(p.played_ms!=null)total.played_ms=(total.played_ms??0)+Number(p.played_ms);total.partial||=g.coverage!=='complete'||p.played_ms==null;for(const k of statKeys)total.stats[k]+=Number(p.stats?.[k]||0);}
-  }return {wins,losses,ties,players:[...players.values()]};
-}
-const api={Client,prepare,begin,failed,csv,parseCSV,totals,statKeys};if(typeof module==='object'&&module.exports)module.exports=api;root.RemoteClient=api;
+  function totals(snapshot) {
+    const players = new Map(
+      (snapshot.roster || []).map((p) => [
+        p.player_id,
+        {
+          ...p,
+          appearances: 0,
+          played_ms: null,
+          partial: false,
+          stats: Object.fromEntries(statKeys.map((k) => [k, 0]))
+        }
+      ])
+    );
+    let wins = 0,
+      losses = 0,
+      ties = 0;
+    for (const g of snapshot.games || []) {
+      if (g.home_points > g.away_points) wins++;
+      else if (g.home_points < g.away_points) losses++;
+      else ties++;
+      for (const p of g.players || []) {
+        if (!players.has(p.player_id))
+          players.set(p.player_id, {
+            ...p,
+            appearances: 0,
+            played_ms: null,
+            partial: false,
+            stats: Object.fromEntries(statKeys.map((k) => [k, 0]))
+          });
+        const total = players.get(p.player_id);
+        total.appearances += Number(p.played_count || 0);
+        if (p.played_ms != null) total.played_ms = (total.played_ms ?? 0) + Number(p.played_ms);
+        total.partial ||= g.coverage !== 'complete' || p.played_ms == null;
+        for (const k of statKeys) total.stats[k] += Number(p.stats?.[k] || 0);
+      }
+    }
+    return { wins, losses, ties, players: [...players.values()] };
+  }
+  const api = { Client, prepare, begin, failed, csv, parseCSV, totals, statKeys };
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  root.RemoteClient = api;
 })(globalThis);
 
 (() => {
   'use strict';
-  const E=ScoreEngine, T=TeamEngine, KEY='courtside.v2';
-  const $=id=>document.getElementById(id);
-  const html=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const labels={'2PT_MADE':'2-point shot made','2PT_MISSED':'2-point shot missed','3PT_MADE':'3-point shot made','3PT_MISSED':'3-point shot missed',FT_MADE:'Free throw made',FT_MISSED:'Free throw missed',OFF_REBOUND:'Offensive rebound',DEF_REBOUND:'Defensive rebound',ASSIST:'Assist',STEAL:'Steal',BLOCK:'Block',TURNOVER:'Turnover',FOUL:'Personal foul'};
-  let state={version:2,roster:DEFAULT_ROSTER.map((p,i)=>({...p,id:`P_DEFAULT_${String(i+1).padStart(3,'0')}`})),games:[],currentGameId:null};
-  let selectedId=null, side='HOME', toastTimer, saveBlocked=false, rawSaved=null, confirmAction=null;
-  let feedbackTimer, inputMethod='keyboard';
-  document.addEventListener('pointerdown',()=>{inputMethod='pointer';document.documentElement.dataset.input='pointer';},true);
-  document.addEventListener('keydown',()=>{inputMethod='keyboard';document.documentElement.dataset.input='keyboard';},true);
-  function confirmPlay(event){
-    const feedback=$('action-confirmation');
+  const Engine = ScoreEngine,
+    Team = TeamEngine,
+    STORAGE_KEY = 'courtside.v2';
+  const getElement = (id) => document.getElementById(id);
+  const escapeHtml = (value) =>
+    String(value).replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+    );
+  const labels = {
+    '2PT_MADE': '2-point shot made',
+    '2PT_MISSED': '2-point shot missed',
+    '3PT_MADE': '3-point shot made',
+    '3PT_MISSED': '3-point shot missed',
+    FT_MADE: 'Free throw made',
+    FT_MISSED: 'Free throw missed',
+    OFF_REBOUND: 'Offensive rebound',
+    DEF_REBOUND: 'Defensive rebound',
+    ASSIST: 'Assist',
+    STEAL: 'Steal',
+    BLOCK: 'Block',
+    TURNOVER: 'Turnover',
+    FOUL: 'Personal foul'
+  };
+  let state = {
+    version: 2,
+    roster: DEFAULT_ROSTER.map((p, i) => ({
+      ...p,
+      id: `P_DEFAULT_${String(i + 1).padStart(3, '0')}`
+    })),
+    games: [],
+    currentGameId: null
+  };
+  let selectedId = null,
+    side = 'HOME',
+    toastTimer,
+    saveBlocked = false,
+    rawSaved = null,
+    confirmAction = null;
+  let feedbackTimer,
+    inputMethod = 'keyboard';
+  document.addEventListener(
+    'pointerdown',
+    () => {
+      inputMethod = 'pointer';
+      document.documentElement.dataset.input = 'pointer';
+    },
+    true
+  );
+  document.addEventListener(
+    'keydown',
+    () => {
+      inputMethod = 'keyboard';
+      document.documentElement.dataset.input = 'keyboard';
+    },
+    true
+  );
+  function confirmPlay(event) {
+    const feedback = getElement('action-confirmation');
     clearTimeout(feedbackTimer);
-    feedback.textContent=`✓ #${event.event_id} · ${event.team_side==='HOME'?'#'+event.jersey_number+' '+event.player_name:event.opponent} · ${labels[event.event_type]}`;
+    feedback.textContent = `✓ #${event.event_id} · ${event.team_side === 'HOME' ? '#' + event.jersey_number + ' ' + event.player_name : event.opponent} · ${labels[event.event_type]}`;
     feedback.classList.add('visible');
-    feedbackTimer=setTimeout(()=>feedback.classList.remove('visible'),1600);
-    if(event.points_value&&inputMethod==='pointer'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
-      const score=$(event.team_side==='HOME'?'home-score':'away-score');
-      score.getAnimations().forEach(animation=>animation.cancel());
-      score.animate([{transform:'scale(1.045)'},{transform:'scale(1)'}],{duration:160,easing:'cubic-bezier(0.23, 1, 0.32, 1)'});
+    feedbackTimer = setTimeout(() => feedback.classList.remove('visible'), 1600);
+    if (
+      event.points_value &&
+      inputMethod === 'pointer' &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      const score = getElement(event.team_side === 'HOME' ? 'home-score' : 'away-score');
+      score.getAnimations().forEach((animation) => animation.cancel());
+      score.animate([{ transform: 'scale(1.045)' }, { transform: 'scale(1)' }], {
+        duration: 160,
+        easing: 'cubic-bezier(0.23, 1, 0.32, 1)'
+      });
     }
   }
-  const current=()=>state.games.find(g=>g.id===state.currentGameId)||null;
-  function warn(text){$('storage-warning').textContent=text;$('storage-warning').hidden=false;$('save-status').textContent='● Backup recommended';}
-  function toast(message,error=false){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.toggle('error',error);$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,error?6500:3000);}
-  function save(){
-    if(saveBlocked)return;
-    try{localStorage.setItem(KEY,JSON.stringify(state));$('save-status').textContent='● Saved on this device';$('storage-warning').hidden=true;}
-    catch{warn('This browser could not save your latest changes. Keep this page open and download a backup or CSV now.');}
+  const current = () => state.games.find((g) => g.id === state.currentGameId) || null;
+  function warn(text) {
+    getElement('storage-warning').textContent = text;
+    getElement('storage-warning').hidden = false;
+    getElement('save-status').textContent = '● Backup recommended';
+  }
+  function toast(message, error = false) {
+    clearTimeout(toastTimer);
+    getElement('toast').textContent = message;
+    getElement('toast').classList.toggle('error', error);
+    getElement('toast').hidden = false;
+    toastTimer = setTimeout(() => (getElement('toast').hidden = true), error ? 6500 : 3000);
+  }
+  function save() {
+    if (saveBlocked) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      getElement('save-status').textContent = '● Saved on this device';
+      getElement('storage-warning').hidden = true;
+    } catch {
+      warn(
+        'This browser could not save your latest changes. Keep this page open and download a backup or CSV now.'
+      );
+    }
   }
   try {
-    rawSaved=localStorage.getItem(KEY);
-    if(rawSaved){const loaded=JSON.parse(rawSaved);E.validateState(loaded);state=loaded;}
-    else {
+    rawSaved = localStorage.getItem(STORAGE_KEY);
+    if (rawSaved) {
+      const loaded = JSON.parse(rawSaved);
+      Engine.validateState(loaded);
+      state = loaded;
+    } else {
       // Preserve legacy roster identities without fabricating event history from totals.
-      const legacy=localStorage.getItem('basketballStats');
-      if(legacy){try{const old=JSON.parse(legacy);if(Array.isArray(old.players)&&old.players.length){const migrated=old.players.map(p=>({id:`P_LEGACY_${p.id}`,name:p.name,number:Number(p.number)}));E.validateState({...state,roster:migrated});state.roster=migrated;}}catch{} }
+      const legacy = localStorage.getItem('basketballStats');
+      if (legacy) {
+        try {
+          const old = JSON.parse(legacy);
+          if (Array.isArray(old.players) && old.players.length) {
+            const migrated = old.players.map((p) => ({
+              id: `P_LEGACY_${p.id}`,
+              name: p.name,
+              number: Number(p.number)
+            }));
+            Engine.validateState({ ...state, roster: migrated });
+            state.roster = migrated;
+          }
+        } catch {}
+      }
       save();
     }
-  } catch {saveBlocked=true;$('recovery-button').hidden=!rawSaved;warn('Saved data could not be loaded. The original is untouched; use Download original recovery data to keep it. New changes are only in memory: use Download backup to save your new work.');}
-  function open(id){$(id).showModal();}
-  function confirm(title,text,action){$('confirm-title').textContent=title;$('confirm-text').textContent=text;confirmAction=action;open('confirm-dialog');}
-  document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));
-  $('confirm-yes').addEventListener('click',()=>{const action=confirmAction;confirmAction=null;$('confirm-dialog').close();try{action?.();}catch(e){toast(e.message,true);}});
-  function run(fn){try{fn();save();render();}catch(e){toast(e.message,true);}}
-  const periodText=g=>g.period<=4?`QUARTER ${g.period}`:`OVERTIME ${g.period-4}`;
-  function renderClock(){
-    const g=current();if(!g)return;
-    if(g.running&&E.remaining(g)<=0){E.pause(g);save();toast('Period complete. Advance when you are ready.');}
-    $('clock-display').textContent=E.clock(g);$('clock-speed').value=String(g.clockSpeed||1);$('clock-speed').disabled=!!(g.finished||g.finalizedAt||g.remote);
-    $('period-label').textContent=periodText(g);
-    $('clock-status').textContent=g.finished?'FINAL':g.running?'LIVE':g.started?'PAUSED':'READY';
-    $('clock-status').classList.toggle('running',g.running);
-    $('clock-button').textContent=g.running?'Ⅱ Pause':g.started?'▶ Resume':'▶ Start game';
-    $('clock-button').classList.toggle('paused-color',g.running);
-    $('clock-button').disabled=g.finished||(!g.running&&g.remainingMs===0);
-    $('adjust-button').disabled=g.running||g.finished;
-    $('period-button').disabled=g.running||g.finished;
-    $('period-button').textContent=g.period<4?'Next quarter →':'Next overtime →';
-    if(!$('box-view').hidden&&!g.finished)renderBox();
+  } catch {
+    saveBlocked = true;
+    getElement('recovery-button').hidden = !rawSaved;
+    warn(
+      'Saved data could not be loaded. The original is untouched; use Download original recovery data to keep it. New changes are only in memory: use Download backup to save your new work.'
+    );
   }
-  function render(){
-    const g=current(); const roster=g?(g.lineup?g.roster.filter(p=>g.lineup.includes(p.id)):g.finished?g.roster:[]):[];
-    if(!roster.some(p=>p.id===selectedId))selectedId=null;
-    $('home-score').textContent=g?E.stats(g,'HOME').points:0;$('away-score').textContent=g?E.stats(g,'AWAY').points:0;
-    $('opponent-name').textContent=g?g.opponent:'OPPONENT';$('game-meta').textContent=g?`${g.date}  ·  vs ${g.opponent}`:'Set up your game to get started.';
-    $('roster-count').textContent=roster.length;
-    $('roster-list').innerHTML=roster.map(p=>{const s=E.stats(g,'HOME',p.id);return `<button class="player-card ${p.id===selectedId&&side==='HOME'?'selected':''}" data-player="${html(p.id)}" aria-pressed="${p.id===selectedId&&side==='HOME'}" aria-label="Select ${html(p.name)}, number ${p.number}"><span class="jersey">${p.number}</span><span class="player-info"><strong>${html(p.name)}</strong><small>${g.starters?.includes(p.id)?'Starter · ':''}${p.guest?'Guest · ':''}${s.rebounds} REB · ${s.assists} AST</small></span><span class="player-points">${s.points}<small>PTS</small></span></button>`;}).join('')||'<div class="empty-state">Choose your game squad and five starters to put players on court.</div>';
-    $('lineup-button').disabled=!g||g.finished;
-    $('lineup-button').textContent=g?.started&&g.lineup?'Substitute':'Choose game players';
-    $('participation-export-button').disabled=!g?.participation;
-    $('participation-note').textContent=!g?.participation?'Minutes unavailable for games recorded before lineup tracking.':g.coverage==='partial'?'Partial minutes: tracking began when a lineup was chosen for this existing game.':'Minutes count running game-clock time only. Clock corrections do not change accumulated minutes.';
-    const player=roster.find(p=>p.id===selectedId);
-    const name=side==='AWAY'?(g?.opponent||'Opponent'):player?.name||'Who made the play?';
-    $('selected-player').classList.toggle('has-selection',!!player||side==='AWAY');
-    $('selected-player').innerHTML=`<span class="selected-avatar">${side==='AWAY'?'A':player?player.number:'—'}</span><div><div class="selected-name">${html(name)}</div><div class="selected-description">${side==='AWAY'?'Team-level recording':player?'Recording for our team':'Select a player from the roster'}</div></div><span class="selection-tag">${side==='AWAY'?'OPPONENT':'OUR TEAM'}</span>`;
-    $('home-side').classList.toggle('active',side==='HOME');$('away-side').classList.toggle('active',side==='AWAY');$('home-side').setAttribute('aria-pressed',side==='HOME');$('away-side').setAttribute('aria-pressed',side==='AWAY');
-    document.querySelectorAll('[data-stat]').forEach(b=>b.disabled=!g||!g.started||g.finished||(side==='HOME'&&!player));
-    $('recording-hint').textContent=!g?'Create a game to start recording.':g.finished?'Game complete. Select a recorded action to correct it before export.':!g.started?'Start the game clock to enable recording.':side==='HOME'&&!player?'Select a player, then tap a stat.':'Each tap records one play at the displayed game time.';
-    const events=g?.gameEvents||[];
-    $('event-count').textContent=events.length;
-    $('event-list').innerHTML=[...events].reverse().map(e=>{
-      const category=e.event_type.endsWith('_MADE')?'made':e.event_type.endsWith('_MISSED')?'missed':['FOUL','TURNOVER'].includes(e.event_type)?'danger':'';
-      const icon=e.points_value?`+${e.points_value}`:category==='missed'?'×':{OFF_REBOUND:'OR',DEF_REBOUND:'DR',ASSIST:'A',STEAL:'S',BLOCK:'B',TURNOVER:'TO',FOUL:'F'}[e.event_type]||'•';
-      return `<div class="event-item" data-event="${e.event_id}" role="button" tabindex="0" aria-label="Correct play ${e.event_id}" data-void="${e.is_voided}"><span class="event-icon ${category}">${icon}</span><div class="event-body"><strong>${html(labels[e.event_type])}</strong><small>${e.team_side==='HOME'?`#${e.jersey_number} ${html(e.player_name)}`:`${html(e.opponent)} · Opponent`}${e.is_voided?' · VOIDED':''}</small></div><div class="event-time">${html(e.game_clock)}<small>${e.quarter.startsWith('OT')?html(e.quarter):'Q'+html(e.quarter)} · #${e.event_id}</small></div></div>`;
-    }).join('')||'<div class="empty-state"><span class="empty-icon">◎</span>Your game starts here.<br>Record a play to see it in the feed.</div>';
-    $('undo-button').disabled=!events.some(e=>!e.is_voided)||!!g?.finalizedAt||!!g?.remote;
-    $('export-button').disabled=!g;$('finish-button').disabled=!g||!!g.finalizedAt||!!g.remote;
-    $('finish-button').textContent=g?.finalizedAt?'Exported · locked':g?.finished?'Reopen game':'End game';
-    for(const id of ['clock-button','adjust-button','period-button'])$(id).disabled=!g;
-    renderClock();renderBox();renderRemote();
+  function open(id) {
+    getElement(id).showModal();
   }
-  function renderBox(){
-    const g=current();if(!g){$('box-table').innerHTML='<div class="empty-state">Create a game to see your team stats.</div>';return;}
-    const cells=s=>`<td>${s.points}</td><td>${s.fgm}/${s.fga}</td><td>${s.threeMade}/${s.threeAttempts}</td><td>${s.ftm}/${s.fta}</td><td>${s.offensive}</td><td>${s.defensive}</td><td>${s.rebounds}</td><td>${s.assists}</td><td>${s.steals}</td><td>${s.blocks}</td><td>${s.turnovers}</td><td>${s.fouls}</td>`;
-    const players=g.roster.filter(p=>!g.squad||g.squad.includes(p.id)||g.gameEvents.some(e=>e.player_id===p.id));
-    $('box-table').innerHTML=`<table><thead><tr><th>PLAYER</th><th>MIN</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>OREB</th><th>DREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th></tr></thead><tbody>${players.map(p=>`<tr><td>#${p.number} ${html(p.name)}${g.starters?.includes(p.id)?' (starter)':''}</td><td>${g.participation?.[p.id]?T.minutes(g,p.id,Date.now()).toFixed(2):'—'}</td>${cells(E.stats(g,'HOME',p.id))}</tr>`).join('')}</tbody><tfoot><tr><td>Our team</td><td>—</td>${cells(E.stats(g,'HOME'))}</tr><tr><td>${html(g.opponent)}</td><td>—</td>${cells(E.stats(g,'AWAY'))}</tr></tfoot></table>`;
-
-    if(g.finished){
-      const format=(v,d=1)=>v==null?'—':v.toFixed(d);
-      $('box-table').insertAdjacentHTML('beforeend',`<h3>Player analytics</h3><p class="form-note">— means no attempts/turnovers, or incomplete historical lineup data for +/−. TS% uses a 0.44 free-throw estimate.</p><button id="player-export-button" class="button subtle">Export player statistics</button><table><thead><tr><th>PLAYER</th><th>+/−</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>AST/TO</th></tr></thead><tbody>${players.map(p=>{const a=PlayerAnalytics.player(g,p.id);return `<tr><td>${html(p.name)}</td><td title="${a.plusMinusStatus}">${a.plusMinus==null?'—':a.plusMinus>0?'+'+a.plusMinus:a.plusMinus}</td>${['fgPct','threePct','ftPct','efgPct','tsPct','astTo'].map(k=>`<td>${format(a[k],k==='astTo'?2:1)}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`);
-      $('player-export-button').onclick=()=>exportResults('player_statistics',g=>PlayerAnalytics.csv(g));
+  function confirm(title, text, action) {
+    getElement('confirm-title').textContent = title;
+    getElement('confirm-text').textContent = text;
+    confirmAction = action;
+    open('confirm-dialog');
+  }
+  document
+    .querySelectorAll('[data-close]')
+    .forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
+  getElement('confirm-yes').addEventListener('click', () => {
+    const action = confirmAction;
+    confirmAction = null;
+    getElement('confirm-dialog').close();
+    try {
+      action?.();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  });
+  function run(fn) {
+    try {
+      fn();
+      save();
+      render();
+    } catch (e) {
+      toast(e.message, true);
     }
   }
-  $('roster-list').addEventListener('click',event=>{const b=event.target.closest('[data-player]');if(b){selectedId=b.dataset.player;side='HOME';render();}});
-  $('home-side').addEventListener('click',()=>{side='HOME';render();});$('away-side').addEventListener('click',()=>{side='AWAY';render();});
-  document.querySelectorAll('[data-stat]').forEach(b=>b.addEventListener('click',()=>run(()=>{
-    const g=current();const event=E.recordEvent(g,b.dataset.stat,g.roster.find(p=>p.id===selectedId),side);
-    confirmPlay(event);
-  })));
-  $('clock-button').addEventListener('click',()=>run(()=>{const g=current();if(!g.lineup){chooseLineup();return;}g.running?E.pause(g):E.start(g);}));
-  $('adjust-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;$('clock-input').value=E.clock(g);open('clock-dialog');});
-  $('clock-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{E.setClock(current(),$('clock-input').value.trim());$('clock-dialog').close();toast('Clock updated.');});});
-  $('period-button').addEventListener('click',()=>{const g=current();if(!g||g.running)return;confirm('Advance the period?',`The clock will reset to ${g.period<4?g.minutes:g.overtimeMinutes}:00 and stay paused. All recorded plays will be kept.`,()=>run(()=>E.nextPeriod(g)));});
-  $('undo-button').addEventListener('click',()=>run(()=>{const e=E.undo(current());if(e)toast(`Play #${e.event_id} voided. Stats updated.`);}));
+  const periodText = (g) => (g.period <= 4 ? `QUARTER ${g.period}` : `OVERTIME ${g.period - 4}`);
+  function renderClock() {
+    const g = current();
+    if (!g) return;
+    if (g.running && Engine.remaining(g) <= 0) {
+      Engine.pause(g);
+      save();
+      toast('Period complete. Advance when you are ready.');
+    }
+    getElement('clock-display').textContent = Engine.clock(g);
+    getElement('clock-speed').value = String(g.clockSpeed || 1);
+    getElement('clock-speed').disabled = !!(g.finished || g.finalizedAt || g.remote);
+    getElement('period-label').textContent = periodText(g);
+    getElement('clock-status').textContent = g.finished
+      ? 'FINAL'
+      : g.running
+        ? 'LIVE'
+        : g.started
+          ? 'PAUSED'
+          : 'READY';
+    getElement('clock-status').classList.toggle('running', g.running);
+    getElement('clock-button').textContent = g.running
+      ? 'Ⅱ Pause'
+      : g.started
+        ? '▶ Resume'
+        : '▶ Start game';
+    getElement('clock-button').classList.toggle('paused-color', g.running);
+    getElement('clock-button').disabled = g.finished || (!g.running && g.remainingMs === 0);
+    getElement('adjust-button').disabled = g.running || g.finished;
+    getElement('period-button').disabled = g.running || g.finished;
+    getElement('period-button').textContent = g.period < 4 ? 'Next quarter →' : 'Next overtime →';
+    if (!getElement('box-view').hidden && !g.finished) renderBox();
+  }
+  function render() {
+    const g = current();
+    const roster = g
+      ? g.lineup
+        ? g.roster.filter((p) => g.lineup.includes(p.id))
+        : g.finished
+          ? g.roster
+          : []
+      : [];
+    if (!roster.some((p) => p.id === selectedId)) selectedId = null;
+    getElement('home-score').textContent = g ? Engine.stats(g, 'HOME').points : 0;
+    getElement('away-score').textContent = g ? Engine.stats(g, 'AWAY').points : 0;
+    getElement('opponent-name').textContent = g ? g.opponent : 'OPPONENT';
+    getElement('game-meta').textContent = g
+      ? `${g.date}  ·  vs ${g.opponent}`
+      : 'Set up your game to get started.';
+    getElement('roster-count').textContent = roster.length;
+    getElement('roster-list').innerHTML =
+      roster
+        .map((p) => {
+          const s = Engine.stats(g, 'HOME', p.id);
+          return `<button class="player-card ${p.id === selectedId && side === 'HOME' ? 'selected' : ''}" data-player="${escapeHtml(p.id)}" aria-pressed="${p.id === selectedId && side === 'HOME'}" aria-label="Select ${escapeHtml(p.name)}, number ${p.number}"><span class="jersey">${p.number}</span><span class="player-info"><strong>${escapeHtml(p.name)}</strong><small>${g.starters?.includes(p.id) ? 'Starter · ' : ''}${p.guest ? 'Guest · ' : ''}${s.rebounds} REB · ${s.assists} AST</small></span><span class="player-points">${s.points}<small>PTS</small></span></button>`;
+        })
+        .join('') ||
+      '<div class="empty-state">Choose your game squad and five starters to put players on court.</div>';
+    getElement('lineup-button').disabled = !g || g.finished;
+    getElement('lineup-button').textContent =
+      g?.started && g.lineup ? 'Substitute' : 'Choose game players';
+    getElement('participation-export-button').disabled = !g?.participation;
+    getElement('participation-note').textContent = !g?.participation
+      ? 'Minutes unavailable for games recorded before lineup tracking.'
+      : g.coverage === 'partial'
+        ? 'Partial minutes: tracking began when a lineup was chosen for this existing game.'
+        : 'Minutes count running game-clock time only. Clock corrections do not change accumulated minutes.';
+    const player = roster.find((p) => p.id === selectedId);
+    const name = side === 'AWAY' ? g?.opponent || 'Opponent' : player?.name || 'Who made the play?';
+    getElement('selected-player').classList.toggle('has-selection', !!player || side === 'AWAY');
+    getElement('selected-player').innerHTML =
+      `<span class="selected-avatar">${side === 'AWAY' ? 'A' : player ? player.number : '—'}</span><div><div class="selected-name">${escapeHtml(name)}</div><div class="selected-description">${side === 'AWAY' ? 'Team-level recording' : player ? 'Recording for our team' : 'Select a player from the roster'}</div></div><span class="selection-tag">${side === 'AWAY' ? 'OPPONENT' : 'OUR TEAM'}</span>`;
+    getElement('home-side').classList.toggle('active', side === 'HOME');
+    getElement('away-side').classList.toggle('active', side === 'AWAY');
+    getElement('home-side').setAttribute('aria-pressed', side === 'HOME');
+    getElement('away-side').setAttribute('aria-pressed', side === 'AWAY');
+    document
+      .querySelectorAll('[data-stat]')
+      .forEach(
+        (b) => (b.disabled = !g || !g.started || g.finished || (side === 'HOME' && !player))
+      );
+    getElement('recording-hint').textContent = !g
+      ? 'Create a game to start recording.'
+      : g.finished
+        ? 'Game complete. Select a recorded action to correct it before export.'
+        : !g.started
+          ? 'Start the game clock to enable recording.'
+          : side === 'HOME' && !player
+            ? 'Select a player, then tap a stat.'
+            : 'Each tap records one play at the displayed game time.';
+    const events = g?.gameEvents || [];
+    getElement('event-count').textContent = events.length;
+    getElement('event-list').innerHTML =
+      [...events]
+        .reverse()
+        .map((e) => {
+          const category = e.event_type.endsWith('_MADE')
+            ? 'made'
+            : e.event_type.endsWith('_MISSED')
+              ? 'missed'
+              : ['FOUL', 'TURNOVER'].includes(e.event_type)
+                ? 'danger'
+                : '';
+          const icon = e.points_value
+            ? `+${e.points_value}`
+            : category === 'missed'
+              ? '×'
+              : {
+                  OFF_REBOUND: 'OR',
+                  DEF_REBOUND: 'DR',
+                  ASSIST: 'A',
+                  STEAL: 'S',
+                  BLOCK: 'B',
+                  TURNOVER: 'TO',
+                  FOUL: 'F'
+                }[e.event_type] || '•';
+          return `<div class="event-item" data-event="${e.event_id}" role="button" tabindex="0" aria-label="Correct play ${e.event_id}" data-void="${e.is_voided}"><span class="event-icon ${category}">${icon}</span><div class="event-body"><strong>${escapeHtml(labels[e.event_type])}</strong><small>${e.team_side === 'HOME' ? `#${e.jersey_number} ${escapeHtml(e.player_name)}` : `${escapeHtml(e.opponent)} · Opponent`}${e.is_voided ? ' · VOIDED' : ''}</small></div><div class="event-time">${escapeHtml(e.game_clock)}<small>${e.quarter.startsWith('OT') ? escapeHtml(e.quarter) : 'Q' + escapeHtml(e.quarter)} · #${e.event_id}</small></div></div>`;
+        })
+        .join('') ||
+      '<div class="empty-state"><span class="empty-icon">◎</span>Your game starts here.<br>Record a play to see it in the feed.</div>';
+    getElement('undo-button').disabled =
+      !events.some((e) => !e.is_voided) || !!g?.finalizedAt || !!g?.remote;
+    getElement('export-button').disabled = !g;
+    getElement('finish-button').disabled = !g || !!g.finalizedAt || !!g.remote;
+    getElement('finish-button').textContent = g?.finalizedAt
+      ? 'Exported · locked'
+      : g?.finished
+        ? 'Reopen game'
+        : 'End game';
+    for (const id of ['clock-button', 'adjust-button', 'period-button'])
+      getElement(id).disabled = !g;
+    renderClock();
+    renderBox();
+    renderRemote();
+  }
+  function renderBox() {
+    const g = current();
+    if (!g) {
+      getElement('box-table').innerHTML =
+        '<div class="empty-state">Create a game to see your team stats.</div>';
+      return;
+    }
+    const cells = (s) =>
+      `<td>${s.points}</td><td>${s.fgm}/${s.fga}</td><td>${s.threeMade}/${s.threeAttempts}</td><td>${s.ftm}/${s.fta}</td><td>${s.offensive}</td><td>${s.defensive}</td><td>${s.rebounds}</td><td>${s.assists}</td><td>${s.steals}</td><td>${s.blocks}</td><td>${s.turnovers}</td><td>${s.fouls}</td>`;
+    const players = g.roster.filter(
+      (p) => !g.squad || g.squad.includes(p.id) || g.gameEvents.some((e) => e.player_id === p.id)
+    );
+    getElement('box-table').innerHTML =
+      `<table><thead><tr><th>PLAYER</th><th>MIN</th><th>PTS</th><th>FG</th><th>3PT</th><th>FT</th><th>OREB</th><th>DREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th></tr></thead><tbody>${players.map((p) => `<tr><td>#${p.number} ${escapeHtml(p.name)}${g.starters?.includes(p.id) ? ' (starter)' : ''}</td><td>${g.participation?.[p.id] ? Team.minutes(g, p.id, Date.now()).toFixed(2) : '—'}</td>${cells(Engine.stats(g, 'HOME', p.id))}</tr>`).join('')}</tbody><tfoot><tr><td>Our team</td><td>—</td>${cells(Engine.stats(g, 'HOME'))}</tr><tr><td>${escapeHtml(g.opponent)}</td><td>—</td>${cells(Engine.stats(g, 'AWAY'))}</tr></tfoot></table>`;
 
-  function exportResults(kind,prepare){
-    const g=current();if(!g)return;if(!g.finished){toast('End the game before exporting final results.',true);return;}
-    const action=()=>{try{ResultExport.exportGame(g,()=>prepare(g),()=>{if(saveBlocked)throw Error('Restore browser saving before finalizing.');localStorage.setItem(KEY,JSON.stringify(state));},content=>download(content,`${g.id}_${kind}.csv`,'text/csv;charset=utf-8'));render();toast('Results exported. This game is locked; you can download its results again.');}catch(error){toast(error.message,true);}};
-    if(g.finalizedAt)action();else confirm('Finalize and export?','Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',action);
+    if (g.finished) {
+      const format = (v, d = 1) => (v == null ? '—' : v.toFixed(d));
+      getElement('box-table').insertAdjacentHTML(
+        'beforeend',
+        `<h3>Player analytics</h3><p class="form-note">— means no attempts/turnovers, or incomplete historical lineup data for +/−. TS% uses a 0.44 free-throw estimate.</p><button id="player-export-button" class="button subtle">Export player statistics</button><table><thead><tr><th>PLAYER</th><th>+/−</th><th>FG%</th><th>3P%</th><th>FT%</th><th>eFG%</th><th>TS%</th><th>AST/TO</th></tr></thead><tbody>${players
+          .map((p) => {
+            const a = PlayerAnalytics.player(g, p.id);
+            return `<tr><td>${escapeHtml(p.name)}</td><td title="${a.plusMinusStatus}">${a.plusMinus == null ? '—' : a.plusMinus > 0 ? '+' + a.plusMinus : a.plusMinus}</td>${['fgPct', 'threePct', 'ftPct', 'efgPct', 'tsPct', 'astTo'].map((k) => `<td>${format(a[k], k === 'astTo' ? 2 : 1)}</td>`).join('')}</tr>`;
+          })
+          .join('')}</tbody></table>`
+      );
+      getElement('player-export-button').onclick = () =>
+        exportResults('player_statistics', (g) => PlayerAnalytics.csv(g));
+    }
   }
-  $('clock-speed').addEventListener('change',()=>run(()=>E.setSpeed(current(),Number($('clock-speed').value))));
-  let correctionId=null;
-  function editEvent(id){
-    const g=current();E.assertMutable(g);if(g.running)E.pause(g);save();render();const e=g.gameEvents.find(x=>x.event_id===id);if(!e)return;correctionId=id;
-    $('correction-time').textContent=`Play #${id} · ${e.quarter} · ${e.game_clock} (time stays unchanged)`;
-    $('correction-side').value=e.team_side;$('correction-player').innerHTML=g.roster.filter(p=>!g.squad||g.squad.includes(p.id)).map(p=>`<option value="${html(p.id)}">#${p.number} ${html(p.name)}</option>`).join('');$('correction-player').value=e.player_id||g.roster[0]?.id;
-    $('correction-type').innerHTML=Object.keys(E.TYPES).map(t=>`<option value="${t}">${html(labels[t])}</option>`).join('');$('correction-type').value=e.event_type;$('correction-delete').checked=e.is_voided;$('correction-unlink').checked=false;$('correction-error').textContent='';
-    const linked=new Set((g.eventLinks||[]).flatMap(l=>l.assistEventId===id?[l.shotEventId]:l.shotEventId===id?[l.assistEventId]:[]));
-    $('correction-related').innerHTML=g.gameEvents.filter(x=>x.event_id!==id&&!x.is_voided&&(Math.abs(x.event_id-id)<=5||linked.has(x.event_id))).map(x=>`<div class="related-row"><span>#${x.event_id} ${html(labels[x.event_type])} · ${html(x.player_name||g.opponent)}${linked.has(x.event_id)?' · linked':''}</span><label><input type="checkbox" data-related-delete="${x.event_id}"> Delete</label>${['ASSIST','2PT_MADE','3PT_MADE'].includes(x.event_type)?`<label><input type="checkbox" data-related-link="${x.event_id}" ${linked.has(x.event_id)?'checked':''}> Link</label>`:''}</div>`).join('');
-    const tx=g.correctionAudit?.findLast(t=>!t.restored&&t.changes.some(c=>c.eventId===id&&!c.before.is_voided&&c.after.is_voided));$('correction-restore').hidden=!e.is_voided||!tx;$('correction-restore').dataset.transaction=tx?.id||'';
-    $('correction-player').disabled=e.team_side==='AWAY';open('correction-dialog');
-  }
-  $('correction-side').addEventListener('change',()=>{$('correction-player').disabled=$('correction-side').value==='AWAY';});
-  $('event-list').addEventListener('click',e=>{const item=e.target.closest('[data-event]');if(item)run(()=>editEvent(Number(item.dataset.event)));});
-  $('event-list').addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)&&e.target.matches('[data-event]')){e.preventDefault();run(()=>editEvent(Number(e.target.dataset.event)));}});
-  $('correction-form').addEventListener('submit',event=>{event.preventDefault();try{
-    const g=current(),patch={event_type:$('correction-type').value,team_side:$('correction-side').value,player_id:$('correction-player').value,is_voided:$('correction-delete').checked};
-    const changes=[{eventId:correctionId,patch},...Array.from(document.querySelectorAll('[data-related-delete]:checked'),el=>({eventId:Number(el.dataset.relatedDelete),patch:{is_voided:true}}))];
-    let links=(g.eventLinks||[]).filter(l=>l.assistEventId!==correctionId&&l.shotEventId!==correctionId);
-    if(!$('correction-unlink').checked)for(const el of document.querySelectorAll('[data-related-link]:checked')){const other=Number(el.dataset.relatedLink);links.push(patch.event_type==='ASSIST'?{assistEventId:correctionId,shotEventId:other}:{assistEventId:other,shotEventId:correctionId});}
-    const deleted=new Set(changes.filter(c=>c.patch.is_voided).map(c=>c.eventId));links=links.filter(l=>!deleted.has(l.assistEventId));
-    E.correctEvents(g,changes,links);save();render();$('correction-dialog').close();toast('Correction saved. Scores and statistics recalculated.');
-  }catch(error){$('correction-error').textContent=error.message;}});
-  $('correction-restore').addEventListener('click',()=>{try{E.restoreDeletion(current(),$('correction-restore').dataset.transaction);save();render();$('correction-dialog').close();toast('Deletion group restored.');}catch(error){$('correction-error').textContent=error.message;}});
-  function setup(){const now=new Date();$('setup-date').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;$('setup-opponent').value='';$('setup-category').value='friendly';open('setup-dialog');}
-  $('new-game-button').addEventListener('click',setup);
-  $('setup-form').addEventListener('submit',async e=>{e.preventDefault();
-    const button=$('setup-form').querySelector('[type="submit"]');if(button.disabled)return;
-    if(remoteBase){button.disabled=true;button.textContent='Checking team roster…';try{await syncSharedRoster();}finally{button.disabled=false;button.textContent='Create game →';}}
-    if(!$('setup-dialog').open||!$('setup-form').reportValidity())return;
-    run(()=>{
-    const g=E.createGame({date:$('setup-date').value,opponent:$('setup-opponent').value,category:$('setup-category').value,minutes:Number($('setup-minutes').value),overtimeMinutes:Number($('setup-ot').value)},state.roster);
-    if(current()?.running)E.pause(current());state.games.push(g);state.currentGameId=g.id;selectedId=null;side='HOME';$('setup-dialog').close();chooseLineup();
-  });});
-  $('finish-button').addEventListener('click',()=>{
-    const g=current();if(!g)return;
-    if(g.finalizedAt||g.remote){toast('This game is locked for upload. Only the admin can correct the official record.',true);return;}
-    if(g.finished){run(()=>{g.finished=false;toast('Game reopened. The clock is paused.');});return;}
-    confirm('Finish this game?','The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',()=>run(()=>{E.pause(g);g.finished=true;toast('Final whistle. Your event log is ready to export.');}));
+  getElement('roster-list').addEventListener('click', (event) => {
+    const b = event.target.closest('[data-player]');
+    if (b) {
+      selectedId = b.dataset.player;
+      side = 'HOME';
+      render();
+    }
   });
-  function download(text,name,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-  $('export-button').addEventListener('click',()=>exportResults('events',g=>E.csv(g)));
-  $('backup-button').addEventListener('click',()=>download(JSON.stringify(E.backup(state),null,2),`courtside-backup-${new Date().toISOString().slice(0,10)}.json`,'application/json'));
-  $('recovery-button').addEventListener('click',()=>download(rawSaved||'',`courtside-original-recovery-${new Date().toISOString().slice(0,10)}.txt`,'text/plain;charset=utf-8'));
-  $('restore-button').addEventListener('click',()=>$('restore-file').click());
-  $('restore-file').addEventListener('change',async()=>{
-    const file=$('restore-file').files[0];if(!file)return;
+  getElement('home-side').addEventListener('click', () => {
+    side = 'HOME';
+    render();
+  });
+  getElement('away-side').addEventListener('click', () => {
+    side = 'AWAY';
+    render();
+  });
+  document.querySelectorAll('[data-stat]').forEach((b) =>
+    b.addEventListener('click', () =>
+      run(() => {
+        const g = current();
+        const event = Engine.recordEvent(
+          g,
+          b.dataset.stat,
+          g.roster.find((p) => p.id === selectedId),
+          side
+        );
+        confirmPlay(event);
+      })
+    )
+  );
+  getElement('clock-button').addEventListener('click', () =>
+    run(() => {
+      const g = current();
+      if (!g.lineup) {
+        chooseLineup();
+        return;
+      }
+      g.running ? Engine.pause(g) : Engine.start(g);
+    })
+  );
+  getElement('adjust-button').addEventListener('click', () => {
+    const g = current();
+    if (!g || g.running) return;
+    getElement('clock-input').value = Engine.clock(g);
+    open('clock-dialog');
+  });
+  getElement('clock-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    run(() => {
+      Engine.setClock(current(), getElement('clock-input').value.trim());
+      getElement('clock-dialog').close();
+      toast('Clock updated.');
+    });
+  });
+  getElement('period-button').addEventListener('click', () => {
+    const g = current();
+    if (!g || g.running) return;
+    confirm(
+      'Advance the period?',
+      `The clock will reset to ${g.period < 4 ? g.minutes : g.overtimeMinutes}:00 and stay paused. All recorded plays will be kept.`,
+      () => run(() => Engine.nextPeriod(g))
+    );
+  });
+  getElement('undo-button').addEventListener('click', () =>
+    run(() => {
+      const e = Engine.undo(current());
+      if (e) toast(`Play #${e.event_id} voided. Stats updated.`);
+    })
+  );
+
+  function exportResults(kind, prepare) {
+    const g = current();
+    if (!g) return;
+    if (!g.finished) {
+      toast('End the game before exporting final results.', true);
+      return;
+    }
+    const action = () => {
+      try {
+        ResultExport.exportGame(
+          g,
+          () => prepare(g),
+          () => {
+            if (saveBlocked) throw Error('Restore browser saving before finalizing.');
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          },
+          (content) => download(content, `${g.id}_${kind}.csv`, 'text/csv;charset=utf-8')
+        );
+        render();
+        toast('Results exported. This game is locked; you can download its results again.');
+      } catch (error) {
+        toast(error.message, true);
+      }
+    };
+    if (g.finalizedAt) action();
+    else
+      confirm(
+        'Finalize and export?',
+        'Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',
+        action
+      );
+  }
+  getElement('clock-speed').addEventListener('change', () =>
+    run(() => Engine.setSpeed(current(), Number(getElement('clock-speed').value)))
+  );
+  let correctionId = null;
+  function editEvent(id) {
+    const g = current();
+    Engine.assertMutable(g);
+    if (g.running) Engine.pause(g);
+    save();
+    render();
+    const e = g.gameEvents.find((x) => x.event_id === id);
+    if (!e) return;
+    correctionId = id;
+    getElement('correction-time').textContent =
+      `Play #${id} · ${e.quarter} · ${e.game_clock} (time stays unchanged)`;
+    getElement('correction-side').value = e.team_side;
+    getElement('correction-player').innerHTML = g.roster
+      .filter((p) => !g.squad || g.squad.includes(p.id))
+      .map((p) => `<option value="${escapeHtml(p.id)}">#${p.number} ${escapeHtml(p.name)}</option>`)
+      .join('');
+    getElement('correction-player').value = e.player_id || g.roster[0]?.id;
+    getElement('correction-type').innerHTML = Object.keys(Engine.TYPES)
+      .map((t) => `<option value="${t}">${escapeHtml(labels[t])}</option>`)
+      .join('');
+    getElement('correction-type').value = e.event_type;
+    getElement('correction-delete').checked = e.is_voided;
+    getElement('correction-unlink').checked = false;
+    getElement('correction-error').textContent = '';
+    const linked = new Set(
+      (g.eventLinks || []).flatMap((l) =>
+        l.assistEventId === id ? [l.shotEventId] : l.shotEventId === id ? [l.assistEventId] : []
+      )
+    );
+    getElement('correction-related').innerHTML = g.gameEvents
+      .filter(
+        (x) =>
+          x.event_id !== id &&
+          !x.is_voided &&
+          (Math.abs(x.event_id - id) <= 5 || linked.has(x.event_id))
+      )
+      .map(
+        (x) =>
+          `<div class="related-row"><span>#${x.event_id} ${escapeHtml(labels[x.event_type])} · ${escapeHtml(x.player_name || g.opponent)}${linked.has(x.event_id) ? ' · linked' : ''}</span><label><input type="checkbox" data-related-delete="${x.event_id}"> Delete</label>${['ASSIST', '2PT_MADE', '3PT_MADE'].includes(x.event_type) ? `<label><input type="checkbox" data-related-link="${x.event_id}" ${linked.has(x.event_id) ? 'checked' : ''}> Link</label>` : ''}</div>`
+      )
+      .join('');
+    const tx = g.correctionAudit?.findLast(
+      (t) =>
+        !t.restored &&
+        t.changes.some((c) => c.eventId === id && !c.before.is_voided && c.after.is_voided)
+    );
+    getElement('correction-restore').hidden = !e.is_voided || !tx;
+    getElement('correction-restore').dataset.transaction = tx?.id || '';
+    getElement('correction-player').disabled = e.team_side === 'AWAY';
+    open('correction-dialog');
+  }
+  getElement('correction-side').addEventListener('change', () => {
+    getElement('correction-player').disabled = getElement('correction-side').value === 'AWAY';
+  });
+  getElement('event-list').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-event]');
+    if (item) run(() => editEvent(Number(item.dataset.event)));
+  });
+  getElement('event-list').addEventListener('keydown', (e) => {
+    if (['Enter', ' '].includes(e.key) && e.target.matches('[data-event]')) {
+      e.preventDefault();
+      run(() => editEvent(Number(e.target.dataset.event)));
+    }
+  });
+  getElement('correction-form').addEventListener('submit', (event) => {
+    event.preventDefault();
     try {
-      const loaded=JSON.parse(await file.text());E.validateState(loaded);
-      confirm('Restore this backup?',`Replace this device’s workspace with ${loaded.games.length} saved games and ${loaded.roster.length} players? Download a backup of your current workspace first if you need to keep it.`,()=>{
-        // Verify the browser can persist the replacement before swapping the in-memory workspace.
-        for(const g of loaded.games)if(g.running)E.pause(g);
-        try{localStorage.setItem(KEY,JSON.stringify(loaded));}catch{toast('Restore failed: this browser could not save the backup. Current data is unchanged.',true);return;}
-        state=loaded;saveBlocked=false;rawSaved=null;$('recovery-button').hidden=true;selectedId=null;save();render();toast('Backup restored. Game clocks are paused.');
+      const g = current(),
+        patch = {
+          event_type: getElement('correction-type').value,
+          team_side: getElement('correction-side').value,
+          player_id: getElement('correction-player').value,
+          is_voided: getElement('correction-delete').checked
+        };
+      const changes = [
+        { eventId: correctionId, patch },
+        ...Array.from(document.querySelectorAll('[data-related-delete]:checked'), (el) => ({
+          eventId: Number(el.dataset.relatedDelete),
+          patch: { is_voided: true }
+        }))
+      ];
+      let links = (g.eventLinks || []).filter(
+        (l) => l.assistEventId !== correctionId && l.shotEventId !== correctionId
+      );
+      if (!getElement('correction-unlink').checked)
+        for (const el of document.querySelectorAll('[data-related-link]:checked')) {
+          const other = Number(el.dataset.relatedLink);
+          links.push(
+            patch.event_type === 'ASSIST'
+              ? { assistEventId: correctionId, shotEventId: other }
+              : { assistEventId: other, shotEventId: correctionId }
+          );
+        }
+      const deleted = new Set(changes.filter((c) => c.patch.is_voided).map((c) => c.eventId));
+      links = links.filter((l) => !deleted.has(l.assistEventId));
+      Engine.correctEvents(g, changes, links);
+      save();
+      render();
+      getElement('correction-dialog').close();
+      toast('Correction saved. Scores and statistics recalculated.');
+    } catch (error) {
+      getElement('correction-error').textContent = error.message;
+    }
+  });
+  getElement('correction-restore').addEventListener('click', () => {
+    try {
+      Engine.restoreDeletion(current(), getElement('correction-restore').dataset.transaction);
+      save();
+      render();
+      getElement('correction-dialog').close();
+      toast('Deletion group restored.');
+    } catch (error) {
+      getElement('correction-error').textContent = error.message;
+    }
+  });
+  function setup() {
+    const now = new Date();
+    getElement('setup-date').value =
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    getElement('setup-opponent').value = '';
+    getElement('setup-category').value = 'friendly';
+    open('setup-dialog');
+  }
+  getElement('new-game-button').addEventListener('click', setup);
+  getElement('setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const button = getElement('setup-form').querySelector('[type="submit"]');
+    if (button.disabled) return;
+    if (remoteBase) {
+      button.disabled = true;
+      button.textContent = 'Checking team roster…';
+      try {
+        await syncSharedRoster();
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Create game →';
+      }
+    }
+    if (!getElement('setup-dialog').open || !getElement('setup-form').reportValidity()) return;
+    run(() => {
+      const g = Engine.createGame(
+        {
+          date: getElement('setup-date').value,
+          opponent: getElement('setup-opponent').value,
+          category: getElement('setup-category').value,
+          minutes: Number(getElement('setup-minutes').value),
+          overtimeMinutes: Number(getElement('setup-ot').value)
+        },
+        state.roster
+      );
+      if (current()?.running) Engine.pause(current());
+      state.games.push(g);
+      state.currentGameId = g.id;
+      selectedId = null;
+      side = 'HOME';
+      getElement('setup-dialog').close();
+      chooseLineup();
+    });
+  });
+  getElement('finish-button').addEventListener('click', () => {
+    const g = current();
+    if (!g) return;
+    if (g.finalizedAt || g.remote) {
+      toast(
+        'This game is locked for upload. Only the admin can correct the official record.',
+        true
+      );
+      return;
+    }
+    if (g.finished) {
+      run(() => {
+        g.finished = false;
+        toast('Game reopened. The clock is paused.');
       });
-    }catch(error){toast(error.message,true);}finally{$('restore-file').value='';}
+      return;
+    }
+    confirm(
+      'Finish this game?',
+      'The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',
+      () =>
+        run(() => {
+          Engine.pause(g);
+          g.finished = true;
+          toast('Final whistle. Your event log is ready to export.');
+        })
+    );
   });
-  for(const [button,view] of [['live-tab','live-view'],['box-tab','box-view']])$(button).addEventListener('click',()=>{
-    $('live-view').hidden=view!=='live-view';$('box-view').hidden=view!=='box-view';
-    for(const tab of ['live-tab','box-tab']){$(tab).classList.toggle('active',tab===button);$(tab).setAttribute('aria-selected',tab===button);}if(view==='box-view')renderBox();
+  function download(text, name, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  getElement('export-button').addEventListener('click', () =>
+    exportResults('events', (g) => Engine.csv(g))
+  );
+  getElement('backup-button').addEventListener('click', () =>
+    download(
+      JSON.stringify(Engine.backup(state), null, 2),
+      `courtside-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      'application/json'
+    )
+  );
+  getElement('recovery-button').addEventListener('click', () =>
+    download(
+      rawSaved || '',
+      `courtside-original-recovery-${new Date().toISOString().slice(0, 10)}.txt`,
+      'text/plain;charset=utf-8'
+    )
+  );
+  getElement('restore-button').addEventListener('click', () => getElement('restore-file').click());
+  getElement('restore-file').addEventListener('change', async () => {
+    const file = getElement('restore-file').files[0];
+    if (!file) return;
+    try {
+      const loaded = JSON.parse(await file.text());
+      Engine.validateState(loaded);
+      confirm(
+        'Restore this backup?',
+        `Replace this device’s workspace with ${loaded.games.length} saved games and ${loaded.roster.length} players? Download a backup of your current workspace first if you need to keep it.`,
+        () => {
+          // Verify the browser can persist the replacement before swapping the in-memory workspace.
+          for (const g of loaded.games) if (g.running) Engine.pause(g);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+          } catch {
+            toast(
+              'Restore failed: this browser could not save the backup. Current data is unchanged.',
+              true
+            );
+            return;
+          }
+          state = loaded;
+          saveBlocked = false;
+          rawSaved = null;
+          getElement('recovery-button').hidden = true;
+          selectedId = null;
+          save();
+          render();
+          toast('Backup restored. Game clocks are paused.');
+        }
+      );
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      getElement('restore-file').value = '';
+    }
   });
-  function manage(){
-    $('manage-list').innerHTML=state.roster.map(p=>`<div class="manage-row"><span class="jersey">${p.number}</span><span>${html(p.name)}<small>${html(p.id)} · ${html(T.status(p))}${p.statusOverride?' (manual)':''}<br>Enrollment: ${p.enrollmentYear||'Unknown'}</small></span><button class="text-button" data-edit="${html(p.id)}">Edit</button></div>`).join('');
+  for (const [button, view] of [
+    ['live-tab', 'live-view'],
+    ['box-tab', 'box-view']
+  ])
+    getElement(button).addEventListener('click', () => {
+      getElement('live-view').hidden = view !== 'live-view';
+      getElement('box-view').hidden = view !== 'box-view';
+      for (const tab of ['live-tab', 'box-tab']) {
+        getElement(tab).classList.toggle('active', tab === button);
+        getElement(tab).setAttribute('aria-selected', tab === button);
+      }
+      if (view === 'box-view') renderBox();
+    });
+  function manage() {
+    getElement('manage-list').innerHTML = state.roster
+      .map(
+        (p) =>
+          `<div class="manage-row"><span class="jersey">${p.number}</span><span>${escapeHtml(p.name)}<small>${escapeHtml(p.id)} · ${escapeHtml(Team.status(p))}${p.statusOverride ? ' (manual)' : ''}<br>Enrollment: ${p.enrollmentYear || 'Unknown'}</small></span><button class="text-button" data-edit="${escapeHtml(p.id)}">Edit</button></div>`
+      )
+      .join('');
   }
-  function refreshPregameRosters(){
-    let changed=false;for(const g of state.games)if(T.refreshPregameRoster(g,state.roster))changed=true;return changed;
+  function refreshPregameRosters() {
+    let changed = false;
+    for (const g of state.games) if (Team.refreshPregameRoster(g, state.roster)) changed = true;
+    return changed;
   }
-  function applyRoster(roster){state.roster=roster;refreshPregameRosters();manage();}
-  const rosterUpdateNote='Games that have not started use the updated roster. Games already started or finished keep their original players. Choose game players to add a new teammate to the squad.';
-  function resetPlayerForm(){$('player-form').reset();$('editing-player').value='';$('save-player').textContent='Add player';$('cancel-edit').hidden=true;}
-  $('roster-button').addEventListener('click',()=>{resetPlayerForm();manage();open('roster-dialog');});
-  $('cancel-edit').addEventListener('click',resetPlayerForm);
-  $('manage-list').addEventListener('click',e=>{const b=e.target.closest('[data-edit]');if(!b)return;const p=state.roster.find(p=>p.id===b.dataset.edit);$('editing-player').value=p.id;$('player-name').value=p.name;$('player-number').value=p.number;$('player-year').value=p.enrollmentYear||'';$('player-status').value=p.statusOverride||'';$('save-player').textContent='Save player';$('cancel-edit').hidden=false;$('player-name').focus();});
-  $('player-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{
-    const name=$('player-name').value.trim(),number=Number($('player-number').value),id=$('editing-player').value;
-    if(!name||!Number.isInteger(number)||number<0||number>99)throw Error('Enter a player name and a whole jersey number from 0 to 99.');
-    const enrollmentYear=$('player-year').value===''?null:Number($('player-year').value),statusOverride=$('player-status').value||null;
-    if(enrollmentYear!==null&&(!Number.isInteger(enrollmentYear)||enrollmentYear<1900||enrollmentYear>9995))throw Error('Enter an enrollment year from 1900 to 9995, or leave it blank.');
-    let p=state.roster.find(p=>p.id===id);
-    if(p){p.name=name;p.number=number;}else{p={id:`P_${E.uuid()}`,name,number};state.roster.push(p);}
-    Object.assign(p,{enrollmentYear,statusOverride});
-    applyRoster(state.roster);resetPlayerForm();toast('Roster saved. '+rosterUpdateNote);
-  });});
-  let lineupDraft=null;
-  function chooseLineup(){
-    const g=current();if(!g||g.finished)return;
-    if(g.running)E.pause(g);
-    save();render();
-    const substitution=!!(g.started&&g.lineup);
-    lineupDraft={gameId:g.id,substitution,players:g.roster.map(p=>({...p})),squad:new Set(g.squad||[]),five:new Set(substitution?g.lineup:g.starters||[])};
-    $('lineup-title').textContent=substitution?'Substitute players':g.started?'Choose squad and current five':'Choose squad and starters';
-    $('lineup-description').textContent=substitution?'Clock paused. Select exactly five from this game’s squad. Confirm or cancel, then resume the clock yourself.':'Select 5–15 designated players, then exactly five '+(g.started?'currently on court. Earlier minutes remain unavailable.':'starters. Guests count toward the 15-player limit.');
-    $('guest-form').hidden=substitution;
-    renderLineup();open('lineup-dialog');
+  function applyRoster(roster) {
+    state.roster = roster;
+    refreshPregameRosters();
+    manage();
   }
-  function renderLineup(){
-    const d=lineupDraft;if(!d)return;
-    const players=d.players.filter(p=>!d.substitution||d.squad.has(p.id));
-    $('squad-list').innerHTML=players.map(p=>`<div class="squad-row"><span class="jersey">${p.number}</span><span class="squad-name">${html(p.name)}<small>${p.guest?'Guest':html(T.status(p))}${current().lineup?.includes(p.id)?' · On court':''}</small></span>${d.substitution?`<label><input type="checkbox" data-court="${html(p.id)}" ${d.five.has(p.id)?'checked':''}> On court</label>`:`<label><input type="checkbox" data-squad="${html(p.id)}" ${d.squad.has(p.id)?'checked':''}> Squad</label><label><input type="checkbox" data-starter="${html(p.id)}" ${d.five.has(p.id)?'checked':''} ${!d.squad.has(p.id)?'disabled':''}> ${current().started?'On court':'Starter'}</label>`}</div>`).join('')||'<p class="dialog-description">The roster is empty. Close this window and add university players in Manage, or add guests below.</p>';
-    $('lineup-count').textContent=`${d.squad.size}/15 designated · ${d.five.size}/5 ${d.substitution||current().started?'on court':'starters'}`;
-    $('lineup-confirm').disabled=d.squad.size<5||d.squad.size>15||d.five.size!==5;
+  const rosterUpdateNote =
+    'Games that have not started use the updated roster. Games already started or finished keep their original players. Choose game players to add a new teammate to the squad.';
+  function resetPlayerForm() {
+    getElement('player-form').reset();
+    getElement('editing-player').value = '';
+    getElement('save-player').textContent = 'Add player';
+    getElement('cancel-edit').hidden = true;
   }
-  $('lineup-button').addEventListener('click',()=>run(chooseLineup));
-  $('squad-list').addEventListener('change',e=>{
-    const d=lineupDraft,b=e.target;if(!d)return;
-    if(b.dataset.squad){const id=b.dataset.squad;if(b.checked&&d.squad.size>=15){toast('Choose at most 15 players, including guests.',true);renderLineup();return;}b.checked?d.squad.add(id):d.squad.delete(id);if(!b.checked)d.five.delete(id);}
-    else {const id=b.dataset.starter||b.dataset.court;if(!id)return;b.checked?d.five.add(id):d.five.delete(id);}
+  getElement('roster-button').addEventListener('click', () => {
+    resetPlayerForm();
+    manage();
+    open('roster-dialog');
+  });
+  getElement('cancel-edit').addEventListener('click', resetPlayerForm);
+  getElement('manage-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-edit]');
+    if (!b) return;
+    const p = state.roster.find((p) => p.id === b.dataset.edit);
+    getElement('editing-player').value = p.id;
+    getElement('player-name').value = p.name;
+    getElement('player-number').value = p.number;
+    getElement('player-year').value = p.enrollmentYear || '';
+    getElement('player-status').value = p.statusOverride || '';
+    getElement('save-player').textContent = 'Save player';
+    getElement('cancel-edit').hidden = false;
+    getElement('player-name').focus();
+  });
+  getElement('player-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    run(() => {
+      const name = getElement('player-name').value.trim(),
+        number = Number(getElement('player-number').value),
+        id = getElement('editing-player').value;
+      if (!name || !Number.isInteger(number) || number < 0 || number > 99)
+        throw Error('Enter a player name and a whole jersey number from 0 to 99.');
+      const enrollmentYear =
+          getElement('player-year').value === '' ? null : Number(getElement('player-year').value),
+        statusOverride = getElement('player-status').value || null;
+      if (
+        enrollmentYear !== null &&
+        (!Number.isInteger(enrollmentYear) || enrollmentYear < 1900 || enrollmentYear > 9995)
+      )
+        throw Error('Enter an enrollment year from 1900 to 9995, or leave it blank.');
+      let p = state.roster.find((p) => p.id === id);
+      if (p) {
+        p.name = name;
+        p.number = number;
+      } else {
+        p = { id: `P_${Engine.uuid()}`, name, number };
+        state.roster.push(p);
+      }
+      Object.assign(p, { enrollmentYear, statusOverride });
+      applyRoster(state.roster);
+      resetPlayerForm();
+      toast('Roster saved. ' + rosterUpdateNote);
+    });
+  });
+  let lineupDraft = null;
+  function chooseLineup() {
+    const g = current();
+    if (!g || g.finished) return;
+    if (g.running) Engine.pause(g);
+    save();
+    render();
+    const substitution = !!(g.started && g.lineup);
+    lineupDraft = {
+      gameId: g.id,
+      substitution,
+      players: g.roster.map((p) => ({ ...p })),
+      squad: new Set(g.squad || []),
+      five: new Set(substitution ? g.lineup : g.starters || [])
+    };
+    getElement('lineup-title').textContent = substitution
+      ? 'Substitute players'
+      : g.started
+        ? 'Choose squad and current five'
+        : 'Choose squad and starters';
+    getElement('lineup-description').textContent = substitution
+      ? 'Clock paused. Select exactly five from this game’s squad. Confirm or cancel, then resume the clock yourself.'
+      : 'Select 5–15 designated players, then exactly five ' +
+        (g.started
+          ? 'currently on court. Earlier minutes remain unavailable.'
+          : 'starters. Guests count toward the 15-player limit.');
+    getElement('guest-form').hidden = substitution;
+    renderLineup();
+    open('lineup-dialog');
+  }
+  function renderLineup() {
+    const d = lineupDraft;
+    if (!d) return;
+    const players = d.players.filter((p) => !d.substitution || d.squad.has(p.id));
+    getElement('squad-list').innerHTML =
+      players
+        .map(
+          (p) =>
+            `<div class="squad-row"><span class="jersey">${p.number}</span><span class="squad-name">${escapeHtml(p.name)}<small>${p.guest ? 'Guest' : escapeHtml(Team.status(p))}${current().lineup?.includes(p.id) ? ' · On court' : ''}</small></span>${d.substitution ? `<label><input type="checkbox" data-court="${escapeHtml(p.id)}" ${d.five.has(p.id) ? 'checked' : ''}> On court</label>` : `<label><input type="checkbox" data-squad="${escapeHtml(p.id)}" ${d.squad.has(p.id) ? 'checked' : ''}> Squad</label><label><input type="checkbox" data-starter="${escapeHtml(p.id)}" ${d.five.has(p.id) ? 'checked' : ''} ${!d.squad.has(p.id) ? 'disabled' : ''}> ${current().started ? 'On court' : 'Starter'}</label>`}</div>`
+        )
+        .join('') ||
+      '<p class="dialog-description">The roster is empty. Close this window and add university players in Manage, or add guests below.</p>';
+    getElement('lineup-count').textContent =
+      `${d.squad.size}/15 designated · ${d.five.size}/5 ${d.substitution || current().started ? 'on court' : 'starters'}`;
+    getElement('lineup-confirm').disabled =
+      d.squad.size < 5 || d.squad.size > 15 || d.five.size !== 5;
+  }
+  getElement('lineup-button').addEventListener('click', () => run(chooseLineup));
+  getElement('squad-list').addEventListener('change', (e) => {
+    const d = lineupDraft,
+      b = e.target;
+    if (!d) return;
+    if (b.dataset.squad) {
+      const id = b.dataset.squad;
+      if (b.checked && d.squad.size >= 15) {
+        toast('Choose at most 15 players, including guests.', true);
+        renderLineup();
+        return;
+      }
+      b.checked ? d.squad.add(id) : d.squad.delete(id);
+      if (!b.checked) d.five.delete(id);
+    } else {
+      const id = b.dataset.starter || b.dataset.court;
+      if (!id) return;
+      b.checked ? d.five.add(id) : d.five.delete(id);
+    }
     renderLineup();
   });
-  $('guest-form').addEventListener('submit',e=>{e.preventDefault();run(()=>{
-    const d=lineupDraft;if(!d||d.substitution)return;
-    const name=$('guest-name').value.trim(),number=Number($('guest-number').value);
-    if(!name||!Number.isInteger(number)||number<0||number>99)throw Error('Enter a guest name and jersey number from 0 to 99.');
-    if(d.squad.size>=15)throw Error('The designated squad is full (15 players).');
-    const p={id:`GUEST_${E.uuid()}`,name,number,guest:true};d.players.push(p);d.squad.add(p.id);$('guest-form').reset();renderLineup();
-  });});
-  $('lineup-confirm').addEventListener('click',()=>run(()=>{
-    const d=lineupDraft,g=current();if(!d||g.id!==d.gameId)throw Error('Reopen player selection for this game.');
-    if(d.substitution)T.substitute(g,[...d.five],Date.now());
-    else {const old=g.roster;g.roster=d.players;try{T.configure(g,[...d.squad],[...d.five]);}catch(e){g.roster=old;throw e;}}
-    $('lineup-dialog').close();lineupDraft=null;toast('Five players ready. Start or resume the clock when play begins.');
-  }));
-  $('roster-export-button').addEventListener('click',()=>run(()=>download(T.rosterCSV(state.roster),'university_roster.csv','text/csv;charset=utf-8')));
-  $('roster-import-button').addEventListener('click',()=>$('roster-file').click());
-  $('roster-file').addEventListener('change',async()=>{
-    const file=$('roster-file').files[0];if(!file)return;
-    try{const merged=T.parseRoster(await file.text(),state.roster);const added=merged.filter(p=>!state.roster.some(x=>x.id===p.id));const updated=merged.filter(p=>{const old=state.roster.find(x=>x.id===p.id);return old&&['name','number','enrollmentYear','statusOverride'].some(k=>(old[k]??null)!==(p[k]??null));});
-      const fieldLabels={name:'Name',number:'Jersey',enrollmentYear:'Enrollment year',statusOverride:'Status override'};
-      const display=(key,value)=>value??(key==='statusOverride'?'Automatic':'Unknown');
-      const preview=[...added.map(p=>`Add ${p.id}: ${p.name} (#${p.number}), enrollment ${display('enrollmentYear',p.enrollmentYear)}, status ${display('statusOverride',p.statusOverride)}`),...updated.map(p=>{const old=state.roster.find(x=>x.id===p.id);return `Update ${p.id}:\n`+Object.keys(fieldLabels).filter(k=>(old[k]??null)!==(p[k]??null)).map(k=>`${fieldLabels[k]}: ${display(k,old[k])} → ${display(k,p[k])}`).join('\n');})].join('\n\n');
-      confirm('Apply roster CSV?',`${added.length} additions and ${updated.length} updates. Players absent from this file will be retained. ${rosterUpdateNote}\n\n${preview||'No changes.'}`,()=>run(()=>{applyRoster(merged);toast('Roster imported. '+rosterUpdateNote);}));
-    }catch(e){toast(e.message,true);}finally{$('roster-file').value='';}
+  getElement('guest-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    run(() => {
+      const d = lineupDraft;
+      if (!d || d.substitution) return;
+      const name = getElement('guest-name').value.trim(),
+        number = Number(getElement('guest-number').value);
+      if (!name || !Number.isInteger(number) || number < 0 || number > 99)
+        throw Error('Enter a guest name and jersey number from 0 to 99.');
+      if (d.squad.size >= 15) throw Error('The designated squad is full (15 players).');
+      const p = { id: `GUEST_${Engine.uuid()}`, name, number, guest: true };
+      d.players.push(p);
+      d.squad.add(p.id);
+      getElement('guest-form').reset();
+      renderLineup();
+    });
   });
-  $('participation-export-button').addEventListener('click',()=>exportResults('participation',g=>T.participationCSV(g,Date.now())));
-  $('history-button').addEventListener('click',()=>{
-    $('history-list').innerHTML=[...state.games].reverse().map(g=>`<div class="history-card"><div><strong>vs ${html(g.opponent)}</strong><small>${html(g.date)} · ${g.finished?'Final':g.started?'In progress':'Ready'}<br>Our team ${E.stats(g,'HOME').points} – ${E.stats(g,'AWAY').points} Opponent · ${g.gameEvents.length} events</small></div><button class="button subtle" data-game="${html(g.id)}">Open</button></div>`).join('')||'<div class="empty-state">Your games will appear here.</div>';open('history-dialog');
+  getElement('lineup-confirm').addEventListener('click', () =>
+    run(() => {
+      const d = lineupDraft,
+        g = current();
+      if (!d || g.id !== d.gameId) throw Error('Reopen player selection for this game.');
+      if (d.substitution) Team.substitute(g, [...d.five], Date.now());
+      else {
+        const old = g.roster;
+        g.roster = d.players;
+        try {
+          Team.configure(g, [...d.squad], [...d.five]);
+        } catch (e) {
+          g.roster = old;
+          throw e;
+        }
+      }
+      getElement('lineup-dialog').close();
+      lineupDraft = null;
+      toast('Five players ready. Start or resume the clock when play begins.');
+    })
+  );
+  getElement('roster-export-button').addEventListener('click', () =>
+    run(() =>
+      download(Team.rosterCSV(state.roster), 'university_roster.csv', 'text/csv;charset=utf-8')
+    )
+  );
+  getElement('roster-import-button').addEventListener('click', () =>
+    getElement('roster-file').click()
+  );
+  getElement('roster-file').addEventListener('change', async () => {
+    const file = getElement('roster-file').files[0];
+    if (!file) return;
+    try {
+      const merged = Team.parseRoster(await file.text(), state.roster);
+      const added = merged.filter((p) => !state.roster.some((x) => x.id === p.id));
+      const updated = merged.filter((p) => {
+        const old = state.roster.find((x) => x.id === p.id);
+        return (
+          old &&
+          ['name', 'number', 'enrollmentYear', 'statusOverride'].some(
+            (k) => (old[k] ?? null) !== (p[k] ?? null)
+          )
+        );
+      });
+      const fieldLabels = {
+        name: 'Name',
+        number: 'Jersey',
+        enrollmentYear: 'Enrollment year',
+        statusOverride: 'Status override'
+      };
+      const display = (key, value) => value ?? (key === 'statusOverride' ? 'Automatic' : 'Unknown');
+      const preview = [
+        ...added.map(
+          (p) =>
+            `Add ${p.id}: ${p.name} (#${p.number}), enrollment ${display('enrollmentYear', p.enrollmentYear)}, status ${display('statusOverride', p.statusOverride)}`
+        ),
+        ...updated.map((p) => {
+          const old = state.roster.find((x) => x.id === p.id);
+          return (
+            `Update ${p.id}:\n` +
+            Object.keys(fieldLabels)
+              .filter((k) => (old[k] ?? null) !== (p[k] ?? null))
+              .map((k) => `${fieldLabels[k]}: ${display(k, old[k])} → ${display(k, p[k])}`)
+              .join('\n')
+          );
+        })
+      ].join('\n\n');
+      confirm(
+        'Apply roster CSV?',
+        `${added.length} additions and ${updated.length} updates. Players absent from this file will be retained. ${rosterUpdateNote}\n\n${preview || 'No changes.'}`,
+        () =>
+          run(() => {
+            applyRoster(merged);
+            toast('Roster imported. ' + rosterUpdateNote);
+          })
+      );
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      getElement('roster-file').value = '';
+    }
   });
-  $('history-list').addEventListener('click',e=>{const b=e.target.closest('[data-game]');if(!b)return;run(()=>{if(current()?.running)E.pause(current());state.currentGameId=b.dataset.game;selectedId=null;side='HOME';$('history-dialog').close();});});
+  getElement('participation-export-button').addEventListener('click', () =>
+    exportResults('participation', (g) => Team.participationCSV(g, Date.now()))
+  );
+  getElement('history-button').addEventListener('click', () => {
+    getElement('history-list').innerHTML =
+      [...state.games]
+        .reverse()
+        .map(
+          (g) =>
+            `<div class="history-card"><div><strong>vs ${escapeHtml(g.opponent)}</strong><small>${escapeHtml(g.date)} · ${g.finished ? 'Final' : g.started ? 'In progress' : 'Ready'}<br>Our team ${Engine.stats(g, 'HOME').points} – ${Engine.stats(g, 'AWAY').points} Opponent · ${g.gameEvents.length} events</small></div><button class="button subtle" data-game="${escapeHtml(g.id)}">Open</button></div>`
+        )
+        .join('') || '<div class="empty-state">Your games will appear here.</div>';
+    open('history-dialog');
+  });
+  getElement('history-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-game]');
+    if (!b) return;
+    run(() => {
+      if (current()?.running) Engine.pause(current());
+      state.currentGameId = b.dataset.game;
+      selectedId = null;
+      side = 'HOME';
+      getElement('history-dialog').close();
+    });
+  });
 
   // The hosted build injects only a public API address. PINs/tokens stay in memory.
-  const remoteBase=globalThis.COURTSIDE_CONFIG?.apiBase||'';
-  let remoteClient=null,uploadBusy=false,rosterSyncPromise=null;
-  function syncSharedRoster(){
-    if(!remoteBase)return Promise.resolve(false);
-    if(rosterSyncPromise)return rosterSyncPromise;
-    const status=$('roster-sync-status');status.hidden=false;
-    if(saveBlocked){status.textContent='Roster check paused until browser saving is restored. The saved roster was kept.';return Promise.resolve(false);}
-    status.textContent='Checking the latest team roster…';
-    rosterSyncPromise=(async()=>{
-      try{
-        if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);
-        const result=await remoteClient.request('/api/roster','GET',undefined,15000);
-        if(!Array.isArray(result.players)||result.players.some(p=>!p||typeof p.player_id!=='string'||!p.player_id))throw Error('Invalid shared roster response.');
-        const official=T.parseRoster(RemoteClient.csv(T.ROSTER_COLUMNS,result.players),[]);
-        T.applySharedRoster(state,official);save();manage();render();
-        if($('lineup-dialog').open&&!lineupDraft?.substitution){$('lineup-dialog').close();chooseLineup();}
-        status.textContent=`Team roster checked: ${official.length} players · ${new Date().toLocaleTimeString()}. ${current()?.started?'This game keeps its original players.':'New and unstarted games use the latest Admin roster.'}`;
+  const remoteBase = globalThis.COURTSIDE_CONFIG?.apiBase || '';
+  let remoteClient = null,
+    uploadBusy = false,
+    rosterSyncPromise = null;
+  function syncSharedRoster() {
+    if (!remoteBase) return Promise.resolve(false);
+    if (rosterSyncPromise) return rosterSyncPromise;
+    const status = getElement('roster-sync-status');
+    status.hidden = false;
+    if (saveBlocked) {
+      status.textContent =
+        'Roster check paused until browser saving is restored. The saved roster was kept.';
+      return Promise.resolve(false);
+    }
+    status.textContent = 'Checking the latest team roster…';
+    rosterSyncPromise = (async () => {
+      try {
+        if (!remoteClient) remoteClient = new RemoteClient.Client(remoteBase);
+        const result = await remoteClient.request('/api/roster', 'GET', undefined, 15000);
+        if (
+          !Array.isArray(result.players) ||
+          result.players.some((p) => !p || typeof p.player_id !== 'string' || !p.player_id)
+        )
+          throw Error('Invalid shared roster response.');
+        const official = Team.parseRoster(
+          RemoteClient.csv(Team.ROSTER_COLUMNS, result.players),
+          []
+        );
+        Team.applySharedRoster(state, official);
+        save();
+        manage();
+        render();
+        if (getElement('lineup-dialog').open && !lineupDraft?.substitution) {
+          getElement('lineup-dialog').close();
+          chooseLineup();
+        }
+        status.textContent = `Team roster checked: ${official.length} players · ${new Date().toLocaleTimeString()}. ${current()?.started ? 'This game keeps its original players.' : 'New and unstarted games use the latest Admin roster.'}`;
         return true;
-      }catch(error){status.textContent='Could not check the latest team roster. Using the saved roster. '+error.message;return false;}
-    })().finally(()=>{rosterSyncPromise=null;renderRemote();});
-    renderRemote();return rosterSyncPromise;
+      } catch (error) {
+        status.textContent =
+          'Could not check the latest team roster. Using the saved roster. ' + error.message;
+        return false;
+      }
+    })().finally(() => {
+      rosterSyncPromise = null;
+      renderRemote();
+    });
+    renderRemote();
+    return rosterSyncPromise;
   }
-  function renderRemote(){
-    const g=current();$('upload-button').hidden=!remoteBase;$('server-roster-button').hidden=!remoteBase;
-    $('server-roster-button').disabled=!!rosterSyncPromise;
-    $('hosted-nav').hidden=!remoteBase;
-    if(remoteBase)document.querySelector('.brand').href='index.html';
-    $('upload-complete').disabled=!!g?.remote?.payload;
-    if(g?.remote?.payload)$('upload-complete').checked=g.remote.payload.game_details?.stats_complete===true;
-    $('upload-button').disabled=!g?.finished||uploadBusy||g?.remote?.state==='uploaded';
-    $('upload-button').textContent=uploadBusy?'Uploading…':g?.remote?.state==='uploaded'?'Uploaded':g?.remote?.state==='pending'?'Retry upload':'Upload finished game';
-    if(g?.remote){$('finish-button').disabled=true;$('finish-button').textContent=g.remote.state==='uploaded'?'Uploaded · admin edits only':'Upload pending · game locked';}
+  function renderRemote() {
+    const g = current();
+    getElement('upload-button').hidden = !remoteBase;
+    getElement('server-roster-button').hidden = !remoteBase;
+    getElement('server-roster-button').disabled = !!rosterSyncPromise;
+    getElement('hosted-nav').hidden = !remoteBase;
+    if (remoteBase) document.querySelector('.brand').href = 'index.html';
+    getElement('upload-complete').disabled = !!g?.remote?.payload;
+    if (g?.remote?.payload)
+      getElement('upload-complete').checked =
+        g.remote.payload.game_details?.stats_complete === true;
+    getElement('upload-button').disabled =
+      !g?.finished || uploadBusy || g?.remote?.state === 'uploaded';
+    getElement('upload-button').textContent = uploadBusy
+      ? 'Uploading…'
+      : g?.remote?.state === 'uploaded'
+        ? 'Uploaded'
+        : g?.remote?.state === 'pending'
+          ? 'Retry upload'
+          : 'Upload finished game';
+    if (g?.remote) {
+      getElement('finish-button').disabled = true;
+      getElement('finish-button').textContent =
+        g.remote.state === 'uploaded'
+          ? 'Uploaded · admin edits only'
+          : 'Upload pending · game locked';
+    }
   }
-  $('upload-button').addEventListener('click',()=>{if(!current()?.finished||uploadBusy)return;$('upload-pin').value='';$('upload-complete').checked=current().remote?.payload?.game_details?.stats_complete===true;$('upload-complete').disabled=!!current().remote?.payload;$('upload-status').textContent='Enter the shared scorekeeper PIN. Your game stays saved on this device.';open('upload-dialog');});
-  $('upload-form').addEventListener('submit',async event=>{
-    event.preventDefault();if(uploadBusy)return;const g=current();if(!g?.finished)return;
-    uploadBusy=true;$('upload-submit').disabled=true;renderRemote();let submissionStarted=false,newlyPrepared=false,priorUncertainty=false;
-    try{
-      if(saveBlocked)throw Error('Restore saving before uploading. Download a backup to preserve this game.');
-      if(!remoteClient)remoteClient=new RemoteClient.Client(remoteBase);
-      const pin=$('upload-pin').value;$('upload-pin').value='';
-      $('upload-status').textContent='Connecting… A sleeping backend can take about a minute to start.';
-      await remoteClient.login(pin,'scorekeeper');
-      newlyPrepared=!g.remote;
-      const payload=RemoteClient.prepare(g,E,T,{statsComplete:$('upload-complete').checked});
-      priorUncertainty=RemoteClient.begin(g);
-      localStorage.setItem(KEY,JSON.stringify(state));
-      submissionStarted=true;
-      const result=await remoteClient.upload(payload);
-      if(result.game_id!==g.id)throw Error('The server returned an unexpected game. Retry to confirm receipt.');
-      g.remote.state='uploaded';g.remote.version=result.version;g.remote.publication=result.publication;
-      save();$('upload-status').textContent=result.publication==='published'?'Game uploaded and statistics published.':'Game saved in the database. Public statistics are awaiting publication; your admin can retry.';
-      toast('Game uploaded. Only your admin can change the official record.');
-    }catch(error){if(submissionStarted)RemoteClient.failed(g,error,priorUncertainty);else if(newlyPrepared)delete g.remote;save();$('upload-status').textContent=error.message+' Your local game is retained.';toast(error.message,true);}
-    finally{if(remoteClient)remoteClient.token=null;uploadBusy=false;$('upload-submit').disabled=false;render();}
+  getElement('upload-button').addEventListener('click', () => {
+    if (!current()?.finished || uploadBusy) return;
+    getElement('upload-pin').value = '';
+    getElement('upload-complete').checked =
+      current().remote?.payload?.game_details?.stats_complete === true;
+    getElement('upload-complete').disabled = !!current().remote?.payload;
+    getElement('upload-status').textContent =
+      'Enter the shared scorekeeper PIN. Your game stays saved on this device.';
+    open('upload-dialog');
   });
-  $('server-roster-button').addEventListener('click',async()=>{if(await syncSharedRoster())toast('Latest Admin roster downloaded. '+rosterUpdateNote);});
+  getElement('upload-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (uploadBusy) return;
+    const g = current();
+    if (!g?.finished) return;
+    uploadBusy = true;
+    getElement('upload-submit').disabled = true;
+    renderRemote();
+    let submissionStarted = false,
+      newlyPrepared = false,
+      priorUncertainty = false;
+    try {
+      if (saveBlocked)
+        throw Error('Restore saving before uploading. Download a backup to preserve this game.');
+      if (!remoteClient) remoteClient = new RemoteClient.Client(remoteBase);
+      const pin = getElement('upload-pin').value;
+      getElement('upload-pin').value = '';
+      getElement('upload-status').textContent =
+        'Connecting… A sleeping backend can take about a minute to start.';
+      await remoteClient.login(pin, 'scorekeeper');
+      newlyPrepared = !g.remote;
+      const payload = RemoteClient.prepare(g, Engine, Team, {
+        statsComplete: getElement('upload-complete').checked
+      });
+      priorUncertainty = RemoteClient.begin(g);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      submissionStarted = true;
+      const result = await remoteClient.upload(payload);
+      if (result.game_id !== g.id)
+        throw Error('The server returned an unexpected game. Retry to confirm receipt.');
+      g.remote.state = 'uploaded';
+      g.remote.version = result.version;
+      g.remote.publication = result.publication;
+      save();
+      getElement('upload-status').textContent =
+        result.publication === 'published'
+          ? 'Game uploaded and statistics published.'
+          : 'Game saved in the database. Public statistics are awaiting publication; your admin can retry.';
+      toast('Game uploaded. Only your admin can change the official record.');
+    } catch (error) {
+      if (submissionStarted) RemoteClient.failed(g, error, priorUncertainty);
+      else if (newlyPrepared) delete g.remote;
+      save();
+      getElement('upload-status').textContent = error.message + ' Your local game is retained.';
+      toast(error.message, true);
+    } finally {
+      if (remoteClient) remoteClient.token = null;
+      uploadBusy = false;
+      getElement('upload-submit').disabled = false;
+      render();
+    }
+  });
+  getElement('server-roster-button').addEventListener('click', async () => {
+    if (await syncSharedRoster()) toast('Latest Admin roster downloaded. ' + rosterUpdateNote);
+  });
 
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderClock();});
-  setInterval(renderClock,200);
-  if(!saveBlocked&&refreshPregameRosters())save();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) renderClock();
+  });
+  setInterval(renderClock, 200);
+  if (!saveBlocked && refreshPregameRosters()) save();
   render();
-  if(remoteBase)syncSharedRoster();
-  if(!current()&&!saveBlocked)setup();
+  if (remoteBase) syncSharedRoster();
+  if (!current() && !saveBlocked) setup();
 })();
 </script>
 </body>

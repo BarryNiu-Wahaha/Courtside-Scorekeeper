@@ -1,42 +1,107 @@
 """Historical on-court identities and derived plus-minus, independent of clock speed."""
+
 from collections import Counter
 from scorekeeper_pipeline.validation import ValidationError
 
 
 def validate_lineups(value, events, participation):
     def require(ok):
-        if not ok: raise ValidationError('Invalid event lineup metadata')
-    require(isinstance(value, dict) and type(value.get('version')) is int and value['version'] == 1 and isinstance(value.get('snapshots'), list))
-    event_ids={e.event_id for e in events}; seen=set(); identities={p['player_id']:p for p in participation}; result=[]; mappings={}
-    for snapshot in value['snapshots']:
+        if not ok:
+            raise ValidationError("Invalid event lineup metadata")
+
+    require(
+        isinstance(value, dict)
+        and type(value.get("version")) is int
+        and value["version"] == 1
+        and isinstance(value.get("snapshots"), list)
+    )
+    event_ids = {event.event_id for event in events}
+    seen_event_ids = set()
+    identities = {player["player_id"]: player for player in participation}
+    result = []
+    official_ids_by_local_id = {}
+    for snapshot in value["snapshots"]:
         require(isinstance(snapshot, dict))
-        eid=snapshot.get('event_id');status=snapshot.get('status');members=snapshot.get('members')
-        require(type(eid) is int and eid in event_ids and eid not in seen and status in ('complete','partial','unknown') and isinstance(members,list))
-        require(len(members)<=5 and (status!='complete' or len(members)==5) and (status!='unknown' or not members))
-        seen.add(eid);local_ids=set();counts=Counter();clean=[]
+        event_id = snapshot.get("event_id")
+        status = snapshot.get("status")
+        members = snapshot.get("members")
+        require(
+            type(event_id) is int
+            and event_id in event_ids
+            and event_id not in seen_event_ids
+            and status in ("complete", "partial", "unknown")
+            and isinstance(members, list)
+        )
+        require(
+            len(members) <= 5
+            and (status != "complete" or len(members) == 5)
+            and (status != "unknown" or not members)
+        )
+        seen_event_ids.add(event_id)
+        local_ids = set()
+        counts = Counter()
+        validated_members = []
         for member in members:
-            require(isinstance(member,dict));local=member.get('local_player_id');pid=member.get('player_id')
-            require(isinstance(local,str) and 0<len(local)<=128 and local not in local_ids and isinstance(pid,str) and pid in identities)
-            require(pid=='P_GUEST' or pid==local)
-            require(local not in mappings or mappings[local]==pid)
-            mappings[local]=pid;local_ids.add(local);counts[pid]+=1
-            require(counts[pid]<=identities[pid]['designated_count'])
-            clean.append({'local_player_id':local,'player_id':pid})
-        result.append({'event_id':eid,'status':status,'members':clean})
-    require(seen==event_ids)
-    require(sum(pid=='P_GUEST' for pid in mappings.values())<=identities.get('P_GUEST',{}).get('designated_count',0))
-    return {'version':1,'snapshots':result}
+            require(isinstance(member, dict))
+            local_player_id = member.get("local_player_id")
+            player_id = member.get("player_id")
+            require(
+                isinstance(local_player_id, str)
+                and 0 < len(local_player_id) <= 128
+                and local_player_id not in local_ids
+                and isinstance(player_id, str)
+                and player_id in identities
+            )
+            require(player_id == "P_GUEST" or player_id == local_player_id)
+            require(
+                local_player_id not in official_ids_by_local_id
+                or official_ids_by_local_id[local_player_id] == player_id
+            )
+            official_ids_by_local_id[local_player_id] = player_id
+            local_ids.add(local_player_id)
+            counts[player_id] += 1
+            require(counts[player_id] <= identities[player_id]["designated_count"])
+            validated_members.append(
+                {"local_player_id": local_player_id, "player_id": player_id}
+            )
+        result.append(
+            {"event_id": event_id, "status": status, "members": validated_members}
+        )
+    require(seen_event_ids == event_ids)
+    require(
+        sum(player_id == "P_GUEST" for player_id in official_ids_by_local_id.values())
+        <= identities.get("P_GUEST", {}).get("designated_count", 0)
+    )
+    return {"version": 1, "snapshots": result}
 
 
 def calculate_plus_minus(events, snapshots, participation):
-    indexed={s['event_id']:s for s in snapshots};values={p['player_id']:0 for p in participation};status='complete'
+    snapshots_by_event_id = {snapshot["event_id"]: snapshot for snapshot in snapshots}
+    values = {player["player_id"]: 0 for player in participation}
+    status = "complete"
     for event in events:
-        if event.is_voided or not event.points_value:continue
-        snap=indexed.get(event.event_id)
-        if not snap or snap['status']!='complete':
-            status='partial' if snap and snap['status']=='partial' and status!='unknown' else 'unknown'
+        if event.is_voided or not event.points_value:
             continue
-        for member in snap['members']:
-            pid=member['player_id']
-            if pid in values and pid!='P_GUEST':values[pid]+=event.points_value*(1 if event.team_side=='HOME' else -1)
-    return {pid:{'value':v if status=='complete' and pid!='P_GUEST' else None,'status':status if pid!='P_GUEST' else 'unknown'} for pid,v in values.items()}
+        snapshot = snapshots_by_event_id.get(event.event_id)
+        if not snapshot or snapshot["status"] != "complete":
+            # Later partial coverage cannot repair an unknown scoring lineup.
+            if snapshot and snapshot["status"] == "partial" and status != "unknown":
+                status = "partial"
+            else:
+                status = "unknown"
+            continue
+        for member in snapshot["members"]:
+            player_id = member["player_id"]
+            if player_id in values and player_id != "P_GUEST":
+                values[player_id] += event.points_value * (
+                    1 if event.team_side == "HOME" else -1
+                )
+    return {
+        player_id: {
+            "value": (
+                points if status == "complete" and player_id != "P_GUEST" else None
+            ),
+            "status": status if player_id != "P_GUEST" else "unknown",
+        }
+        for player_id, points in values.items()
+    }
