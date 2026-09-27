@@ -24,23 +24,43 @@
 
 Season, year, and career filters; player leaders; searchable profiles; shooting splits; and individual game reports with team comparisons and player plus/minus.
 
+<details>
+<summary>Show dashboard screenshot</summary>
+
 ![CourtSide dashboard showing season filters, team metrics, and player leader cards](docs/assets/dashboard-current.png)
+
+</details>
 
 ### Scorekeeper with adjustable clock speed
 
+<details>
+<summary>Show scorekeeper screenshot</summary>
+
 ![CourtSide tablet scorekeeper showing the current five players, stat buttons, 2× clock speed, and event history](docs/assets/scorekeeper-current.png)
+
+</details>
 
 The recorder supports 13 event types, own-team player statistics, opponent team totals, substitutions, and playing-time tracking. Use 1×, 1.5×, 2×, or 4× game-clock speed while watching video on a separate device. New games start at 1×. Its standalone build works offline without external scripts or stylesheets.
 
 ### Edit and restore recorded plays
 
+<details>
+<summary>Show event correction screenshot</summary>
+
 ![Current event correction dialog for editing a recorded play while retaining its original time and lineup](docs/assets/event-correction-current.png)
+
+</details>
 
 Select a statistical event to edit or delete it without removing later valid plays. Resolve linked assists explicitly and restore deleted groups when needed. Corrections remain available after the game ends until the first result export finalizes the game; downloads can be repeated.
 
 ### Game report with player plus/minus
 
+<details>
+<summary>Show game report screenshot</summary>
+
 ![Game report with score, estimated metrics, team comparison, and a player box score including plus/minus](docs/assets/game-box-current.png)
+
+</details>
 
 Public plus/minus appears only in individual game box scores. It uses the players on court for each score; historical games without complete lineup history show **—**. The recorder's postgame summary and analytical CSV also include FG%, 3P%, FT%, eFG%, TS%, and assist/turnover ratio.
 
