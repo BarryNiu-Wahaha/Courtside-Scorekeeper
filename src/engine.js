@@ -22,10 +22,14 @@
     if (typeof opponent !== 'string' || !opponent.trim()) throw Error('Enter an opponent name.');
     if (![minutes,overtimeMinutes].every(n => Number.isInteger(n) && n >= 1 && n <= 99)) throw Error('Period lengths must be whole minutes from 1 to 99.');
     return {id: `G${date.replaceAll('-','')}_${uuid()}`, date, opponent: opponent.trim(), minutes, overtimeMinutes, category,
-      quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,
+      quarter:'1', period:1, started:false, finished:false, running:false, remainingMs:minutes*60000, deadline:null,clockSpeed:1,
       roster:roster.map(p=>({...p})), gameEvents:[]};
   }
-  function remaining(game, now=Date.now()) { return Math.max(0,game.running ? game.deadline-now : game.remainingMs); }
+  function remaining(game, now=Date.now()) { return Math.max(0,game.running ? Math.round((game.deadline-now)*(game.clockSpeed||1)) : game.remainingMs); }
+  function setSpeed(game,speed,now=Date.now()){
+    if(![1,1.5,2,4].includes(speed))throw Error('Choose 1x, 1.5x, 2x or 4x speed.');
+    const running=game.running;if(running)pause(game,now);game.clockSpeed=speed;if(running&&game.remainingMs>0)start(game,now);
+  }
   function clock(game, now=Date.now()) {
     const seconds=Math.ceil(remaining(game,now)/1000);
     return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
@@ -34,7 +38,7 @@
     if (game.finished) throw Error('Reopen the game before starting the clock.');
     if (game.running) return;
     if (game.remainingMs <= 0) throw Error('Advance the period or adjust the clock first.');
-    T.start(game,now);game.started=true; game.running=true; game.deadline=now+game.remainingMs;
+    T.start(game,now);game.started=true; game.running=true; game.deadline=now+game.remainingMs/(game.clockSpeed||1);
   }
   function pause(game, now=Date.now()) {T.settle(game,now);game.remainingMs=remaining(game,now); game.running=false; game.deadline=null;if(game.squad)game.timingAnchor=null;}
   function setClock(game, value) {
@@ -93,6 +97,7 @@
     for(const g of state.games){
       check(g&&str(g.id)&&!ids.has(g.id)); ids.add(g.id); roster(g.roster);
       T.validateGame(g);
+      check(g.clockSpeed===undefined||[1,1.5,2,4].includes(g.clockSpeed));
       check(typeof g.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Number.isFinite(Date.parse(g.date))&&new Date(g.date).toISOString().slice(0,10)===g.date&&str(g.opponent));
       check(g.category==null||['official','friendly'].includes(g.category));
       check([g.minutes,g.overtimeMinutes].every(n=>Number.isInteger(n)&&n>=1&&n<=99));
@@ -117,6 +122,6 @@
     for(const game of snapshot.games)if(game.running)pause(game,now);
     return snapshot;
   }
-  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,nextPeriod,recordEvent,undo,stats,csv,validateState,backup};
+  const api={TYPES,COLUMNS,uuid,createGame,remaining,clock,start,pause,setClock,setSpeed,nextPeriod,recordEvent,undo,stats,csv,validateState,backup};
   if(typeof module!=='undefined'&&module.exports)module.exports=api; else root.ScoreEngine=api;
 })(globalThis);

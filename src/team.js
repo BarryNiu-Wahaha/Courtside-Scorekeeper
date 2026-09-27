@@ -76,16 +76,17 @@
   }
   function settle(game,now=Date.now()){
     if(!game.squad||!game.running||game.timingAnchor==null)return;
-    const end=Math.min(now,game.deadline),elapsed=Math.max(0,end-game.timingAnchor);
+    const end=Math.min(now,game.deadline),elapsed=elapsedMs(game,end);
     if(elapsed){for(const id of game.lineup){game.participation[id].playedMs+=elapsed;game.participation[id].played=true;}game.timingAnchor=end;revision(game,now);}
   }
   function start(game,now){if(!game.squad)return;checkFive(game,game.lineup);game.timingAnchor=now;for(const id of game.lineup)game.participation[id].played=true;revision(game,now);}
   function substitute(game,ids,now=Date.now()){
     if(game.running||game.finished)fail('Pause the game before substituting.');checkFive(game,ids);game.lineup=[...ids];revision(game,now);
   }
+  function elapsedMs(game,now){const speed=game.clockSpeed||1;return Math.max(0,Math.round((game.deadline-game.timingAnchor)*speed)-Math.max(0,Math.round((game.deadline-now)*speed)));}
   function minutes(game,id,now=Date.now()){
     if(!game.participation?.[id])return 0;let ms=game.participation[id].playedMs;
-    if(game.running&&game.lineup.includes(id)&&game.timingAnchor!=null)ms+=Math.max(0,Math.min(now,game.deadline)-game.timingAnchor);return ms/60000;
+    if(game.running&&game.lineup.includes(id)&&game.timingAnchor!=null)ms+=elapsedMs(game,Math.min(now,game.deadline));return ms/60000;
   }
   function exportEvent(game,event){return game.roster.find(p=>p.id===event.player_id)?.guest?{...event,player_id:GUEST,player_name:'Guest Player',jersey_number:0}:event;}
   function participationCSV(game,now=Date.now()){
@@ -105,7 +106,7 @@
     checkFive(game,game.lineup);if(!['complete','partial'].includes(game.coverage)||!Array.isArray(game.starters)||(game.coverage==='complete'?game.starters.length!==5:game.starters.length!==0)||new Set(game.starters).size!==game.starters.length||game.starters.some(id=>!game.squad.includes(id)))fail('Invalid saved starters or participation coverage.');
     if(!Number.isSafeInteger(game.revision)||game.revision<1||!game.participation||Object.keys(game.participation).length!==game.squad.length)fail('Invalid saved participation.');
     for(const id of game.squad){const p=game.participation[id];if(!p||!Number.isSafeInteger(p.playedMs)||p.playedMs<0||typeof p.played!=='boolean'||p.playedMs>0&&!p.played)fail('Invalid saved player minutes.');}
-    if(game.running&&(!Number.isSafeInteger(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs))fail('Invalid saved timing anchor.');
+    if(game.running&&(!Number.isFinite(game.timingAnchor)||game.timingAnchor>game.deadline||game.timingAnchor<game.deadline-game.remainingMs/(game.clockSpeed||1)-0.001))fail('Invalid saved timing anchor.');
   }
   const api={GUEST,ROSTER_COLUMNS,PART_COLUMNS,status,validatePlayer,rosterCSV,parseRoster,refreshPregameRoster,applySharedRoster,configure,settle,start,substitute,minutes,exportEvent,participationCSV,validateGame,snapshotLineup,validateSnapshot};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TeamEngine=api;
