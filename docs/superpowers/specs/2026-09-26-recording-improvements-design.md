@@ -1,6 +1,6 @@
 # Recording corrections, clock speed, and player analytics
 
-Status: proposed design for user review. Requirements confirmed; implementation not started.
+Status: proposed design for user review. Requirements extended to cloud persistence and public viewing-page plus-minus; implementation not started.
 
 Sources: GitHub issues [#1](https://github.com/BarryNiu-Wahaha/Courtside-Scorekeeper/issues/1), [#3](https://github.com/BarryNiu-Wahaha/Courtside-Scorekeeper/issues/3), [#4](https://github.com/BarryNiu-Wahaha/Courtside-Scorekeeper/issues/4), and the requirements discussion on September 26, 2026.
 
@@ -77,7 +77,19 @@ Proposed interpretation of the export lock: game-result exports (event, particip
 
 Backup downloads and roster exports are not game-result exports and do not finalize games. Finalization blocks recording, historical correction/restoration, clock changes, substitutions and reopening, including engine-level guards. Finished but unfinalized games remain correctable. Remote pending/uploaded locks continue to take precedence; admin-side correction behavior is unchanged.
 
-Keep existing event and participation CSV column contracts for the pipeline and remote API. Add the new player-statistics CSV as a separate local analytical export. JSON backups retain speed, event snapshots, links, audit data and finalization state. Existing remote uploads do not gain plus-minus persistence or dashboard presentation in this scope; expanding those contracts is a separate change.
+Keep existing event and participation CSV column contracts. Add the new player-statistics CSV as a separate analytical export. JSON backups retain speed, event snapshots, links, audit data and finalization state. Following user clarification, cloud uploads must also retain historical lineup data, and the public viewing page must display player plus-minus.
+
+### Cloud persistence and public viewing page
+
+Extend the upload contract with versioned lineup metadata keyed by event ID. Store it transactionally with the events and participation records, include it in retry hashing and correction audit documents, and return it when an admin opens an uploaded game. Accept older uploads without lineup metadata as historical records with unavailable plus-minus.
+
+Proposed normalized storage: add an `event_lineup_snapshots` table keyed by `(game_id, event_id)` with completeness status, and an `event_lineup_members` table containing that snapshot's local player identity and mapped cloud identity. A snapshot row represents explicit unknown/partial coverage even when it has no members. Preserve distinct local guest identities because several guests currently collapse to `P_GUEST` in cloud statistics. Foreign keys, replacement order and deletion behavior must respect event ownership. Supply an additive migration; do not rebuild existing tables or infer historical memberships.
+
+The backend computes plus-minus from active scores and their saved lineups when building the public snapshot. Publish the calculated value and completeness status through the publication whitelist; do not expose raw correction audits or lineup metadata publicly. Admin scoring corrections must preserve snapshot associations and trigger recomputation. Newly inserted admin events without historical lineup information make affected results incomplete. Keep the existing upload retry and optimistic-concurrency guarantees.
+
+The public viewing page shows plus-minus only in individual game box scores, as confirmed by the user. Add a +/- column to our team's player rows. Display signed values such as +8 and -3, a true zero as 0, and unavailable/incomplete results as an em dash with an explanation. Historical games without lineups remain unavailable. Do not add plus-minus to player profiles, season totals, career totals or leaderboards. The cloud's combined Guest Player row must not masquerade as an individual player's plus-minus.
+
+Other advanced metrics remain in the agreed post-game summary and exports; this scope extension specifically adds plus-minus to the public viewing page.
 
 Validate added metadata and references on restore. Accept old backups with conservative defaults and unavailable historical plus-minus. A restored backup that contains finalization stays locked. An older backup made before finalization remains a separate earlier snapshot; offline storage cannot prevent deliberate rollback to it.
 
@@ -89,6 +101,8 @@ Validate added metadata and references on restore. Accept old backups with conse
 - `src/app.js`, `src/template.html`, `src/styles.css`: event selection/dialog, related-action resolution, speed controls, finished-game summary and finalization flow.
 - State validation and backup handling: backward compatibility and persistence of new metadata.
 - Documentation: recording workflow, export locking, metric definitions and partial data.
+- Cloud: additive SQL migration, upload validation/versioning, transactional repository storage, admin correction round trips, backend plus-minus computation and publication whitelist.
+- Public viewing: `site/public.js` and any necessary `site/analytics.js` data handling, plus markup/styles for the individual game box score's +/- column.
 - Generated `Front.html`: rebuild from sources after implementation.
 
 ## Verification criteria
@@ -100,6 +114,7 @@ Validate added metadata and references on restore. Accept old backups with conse
 - Score before and after substitutions at the same displayed time; attribute both using their own snapshots. Verify home and opponent scoring, edits, voids and restoration.
 - Missing historical lineups yield incomplete plus-minus; no invented zeros. Exercise zero denominators and hand-calculated metric examples.
 - Confirm existing CSV contracts and existing backup fixtures still validate. New analytical exports contain the agreed player metrics and completeness.
+- Verify cloud upload, retry, admin correction and publication round trips retain event lineups; backend calculations match recorder results. Test legacy uploads, partial snapshots, multiple guests, transactional rollback and migration on existing data. Verify public signed values and missing-data labels.
 - Browser checks cover event dialog keyboard/touch use, speed selection, post-game summary, finalization and re-download. Run relevant engine, team, remote and export regression suites and rebuild the standalone app.
 
 ## Review boundary

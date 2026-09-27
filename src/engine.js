@@ -57,7 +57,7 @@
     const event={game_id:game.id, event_id:(game.gameEvents.at(-1)?.event_id||0)+1,
       game_date:game.date, opponent:game.opponent, player_id:p?.id??'', player_name:p?.name??'', jersey_number:p?.number??'',
       quarter:game.quarter, game_clock:clock(game,now), event_type:type, points_value:TYPES[type], recorded_at:new Date(now).toISOString(),
-      team_side:side, is_voided:false};
+      team_side:side, is_voided:false,lineupSnapshot:T.snapshotLineup(game)};
     game.gameEvents.push(event);
     if(p&&game.participation?.[p.id])game.participation[p.id].played=true;
     return event;
@@ -101,6 +101,7 @@
       check(Number.isFinite(g.remainingMs)&&g.remainingMs>=0&&g.remainingMs<=5999000&&(g.running?Number.isFinite(g.deadline):g.deadline===null));
       check(Array.isArray(g.gameEvents)); let previous=0;
       for(const e of g.gameEvents){
+        if(e.lineupSnapshot!==undefined)T.validateSnapshot(g,e.lineupSnapshot);
         check(e&&COLUMNS.every(c=>Object.hasOwn(e,c))&&Number.isInteger(e.event_id)&&e.event_id>previous);previous=e.event_id;
         check(e.game_id===g.id&&e.game_date===g.date&&e.opponent===g.opponent&&Object.hasOwn(TYPES,e.event_type)&&e.points_value===TYPES[e.event_type]&&typeof e.is_voided==='boolean');
         check(['HOME','AWAY'].includes(e.team_side)&&typeof e.quarter==='string'&&/^(?:[1-4]|OT[1-9]\d*)$/.test(e.quarter)&&typeof e.game_clock==='string'&&/^\d{2}:[0-5]\d$/.test(e.game_clock));
