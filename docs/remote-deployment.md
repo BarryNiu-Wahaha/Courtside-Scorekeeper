@@ -102,3 +102,7 @@ node tests/browser-remote.cjs
 ```
 
 The remote browser test mocks API transport and uses a local HTTP server. MySQL integration tests use a temporary loopback-only instance, never your localhost:3306 production database. Docker is required only to test the deployment container locally; Render can build the supplied Dockerfile.
+
+## Optional anonymous visitor analytics
+
+See [visitor activity setup and API](visitor-activity.md) for the separate MongoDB database, private admin reports, opt-out, retention, and deployment flag. Collection is disabled by default. Existing MySQL records and public basketball snapshots are unchanged.

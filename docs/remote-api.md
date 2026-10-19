@@ -53,3 +53,7 @@ V1 submissions remain accepted with unavailable historical plus-minus. A V1 admi
 Run `python -m scorekeeper_remote migrate` against the intended deployment database before deploying code that queries lineups. The additive, repeatable migration adds `remote_uploads.lineups_json`, `event_lineup_snapshots` and `event_lineup_members` (defined in `sql/migrate_event_lineups.sql`). It preserves existing rows. Event replacement and lineup writes share one transaction; event foreign keys cascade snapshot/member deletion during replacement. No production migration is performed by tests.
 
 The public snapshot stays schema_version 1 and adds optional player fields `plus_minus` and `plus_minus_status`. Only derived results are public; local guest IDs, raw lineups and correction audits are not published. Missing/partial data yields null; the combined Guest Player row has unavailable individual plus-minus.
+
+## Optional anonymous visitor analytics
+
+See [visitor activity setup and API](visitor-activity.md) for the separate MongoDB database, private admin reports, opt-out, retention, and deployment flag. Collection is disabled by default. Existing MySQL records and public basketball snapshots are unchanged.

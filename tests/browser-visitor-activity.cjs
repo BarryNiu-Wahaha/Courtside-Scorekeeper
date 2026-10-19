@@ -1,0 +1,35 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
+const {browser}=require('./browser-driver.cjs'),{snapshot}=require('./dashboard-fixture.cjs');
+const root=path.resolve(__dirname,'..'),artifacts=path.join(__dirname,'artifacts');fs.mkdirSync(artifacts,{recursive:true});fs.writeFileSync(path.join(artifacts,'visitor-fixture.json'),JSON.stringify(snapshot));
+const python=process.env.PYTHON||path.join(root,'.local/venv/Scripts/python.exe');
+const server=spawn(python,['-u','tests/visitor_test_server.py'],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe']});
+let b;
+(async()=>{
+  const base=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(Error('Test API startup timeout')),15000);server.stdout.on('data',chunk=>{output+=chunk;const m=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(m){clearTimeout(timer);resolve(m[0]);}});server.on('error',reject);server.on('exit',code=>{clearTimeout(timer);reject(Error('Test API exited '+code));});});
+  const login=await(await fetch(base+'/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'admin',pin:'99999999'})})).json();
+  const headers={Authorization:'Bearer '+login.token};
+  assert.equal((await fetch(base+'/api/admin/visitor-activity/summary')).status,401);
+  b=await browser();await b.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await b.send('Page.navigate',{url:base+'/index.html'});await b.until("document.querySelector('#period-select')?.disabled===false");
+  await b.evaluate("document.querySelector('#period-select').value='career';document.querySelector('#period-select').dispatchEvent(new Event('change'));document.querySelector('.main-nav a[href=\"#players\"]').click();document.querySelector('#player-table tbody button').click();document.querySelector('#player-close').click();document.querySelector('#latest-game .latest-report').click();document.querySelector('#box-close').click();");
+  await b.delay(11000);
+  let data=await(await fetch(base+'/api/admin/visitor-activity/summary',{headers})).json();
+  assert.equal(data.visits,1);assert.equal(data.popular_players[0].count,1);assert.equal(data.popular_games[0].count,1);
+  await b.send('Page.navigate',{url:base+'/Front.html'});await b.until("document.querySelector('#backup-button')");
+  await b.evaluate("document.querySelector('#backup-button').click()");await b.delay(11000);
+  const sessions=await(await fetch(base+'/api/admin/visitor-activity/sessions',{headers})).json();
+  let download=false;for(const session of sessions.items){const timeline=await(await fetch(base+'/api/admin/visitor-activity/sessions/'+session.session_id,{headers})).json();download ||= timeline.items.some(e=>e.event==='download'&&e.properties.kind==='backup');}
+  assert.equal(download,true);
+  await b.send('Page.navigate',{url:base+'/admin.html'});await b.until("typeof document.querySelector('#login-form')?.onsubmit==='function'");
+  await b.evaluate("document.querySelector('#admin-pin').value='99999999';document.querySelector('#login-form').requestSubmit()");
+  await b.until("document.querySelector('[data-metric=visits]')?.textContent==='2'");
+  await b.evaluate("document.querySelector('.visitor-session').click()");await b.until("document.querySelector('#visitor-activity ol li')");
+  fs.writeFileSync(path.join(artifacts,'visitor-admin-mobile.png'),Buffer.from((await b.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  await b.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
+  await b.evaluate("document.querySelector('#visitor-activity').scrollIntoView()");
+  fs.writeFileSync(path.join(artifacts,'visitor-admin-desktop.png'),Buffer.from((await b.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  data=await(await fetch(base+'/api/admin/visitor-activity/summary',{headers})).json();assert.equal(data.visits,2,'admin itself must not be tracked');
+  await b.send('Page.navigate',{url:base+'/index.html'});await b.until("document.querySelector('.visitor-notice button')");await b.evaluate("document.querySelector('.visitor-notice button').click()");await b.delay(11000);
+  data=await(await fetch(base+'/api/admin/visitor-activity/summary',{headers})).json();assert.equal(data.visits,2,'opt-out clears the unsent page event');
+  assert.deepEqual(b.errors,[]);console.log('Visitor end-to-end passed: page/player/game/filter/export, admin reports and timeline, mobile/desktop, opt-out, public denial, no admin tracking.');
+})().catch(async e=>{console.error(e);if(b){console.error(await b.evaluate('document.body.innerText'));console.error(JSON.stringify(b.errors));}process.exitCode=1;}).finally(async()=>{await b?.close();server.kill();});

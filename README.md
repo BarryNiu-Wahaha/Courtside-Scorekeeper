@@ -224,3 +224,7 @@ docs/                   User guides, data contracts, design, and deployment note
 ```
 
 **Documentation:** [Scorekeeper guide](docs/scorekeeper-guide.md) · [Roster and lineups](docs/roster-lineups.md) · [CSV → MySQL pipeline](docs/mysql-pipeline.md) · [API setup](docs/remote-api.md) · [Dashboard metrics](docs/public-dashboard.md) · [Cloud deployment](docs/remote-deployment.md)
+
+## Anonymous visitor activity (optional)
+
+The hosted site can record anonymous visits and selected actions in a separate MongoDB database. Admins can request fresh visit summaries and session timelines, with 90-day retention and browser opt-out. Collection is disabled by default and requires separate database setup and deployment. [Setup, API, and limitations](docs/visitor-activity.md).
