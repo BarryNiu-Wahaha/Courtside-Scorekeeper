@@ -275,3 +275,5 @@ body:has(dialog[open]){overflow:hidden}
  dialog::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none;background:#122541b3}
 }
 @media(prefers-contrast:more){:root{--muted:#34445a;--line:#8796aa}.panel,.summary-card,.leader-card{border-color:var(--line)}}
+
+.visitor-notice{padding:12px 20px;font:12px/1.5 system-ui;color:#475569;background:#f1f5f9;text-align:center}.visitor-notice button{font:inherit;text-decoration:underline;cursor:pointer;padding:6px 10px;color:inherit;background:transparent;border:0}

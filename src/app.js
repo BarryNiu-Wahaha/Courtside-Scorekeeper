@@ -1,5 +1,9 @@
 (() => {
   'use strict';
+  let visitor;
+  try { const c=globalThis.COURTSIDE_CONFIG||{}; visitor=globalThis.CourtSideVisitor?.create({apiBase:c.apiBase,enabled:c.visitorTrackingEnabled,page:'scorekeeper'}); } catch {}
+  const track=(event,properties)=>{try{visitor?.track(event,properties);}catch{}};
+
   const E=ScoreEngine, T=TeamEngine, KEY='courtside.v2';
   const $=id=>document.getElementById(id);
   const html=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -117,7 +121,7 @@
 
   function exportResults(kind,prepare){
     const g=current();if(!g)return;if(!g.finished){toast('End the game before exporting final results.',true);return;}
-    const action=()=>{try{ResultExport.exportGame(g,()=>prepare(g),()=>{if(saveBlocked)throw Error('Restore browser saving before finalizing.');localStorage.setItem(KEY,JSON.stringify(state));},content=>download(content,`${g.id}_${kind}.csv`,'text/csv;charset=utf-8'));render();toast('Results exported. This game is locked; you can download its results again.');}catch(error){toast(error.message,true);}};
+    const action=()=>{try{ResultExport.exportGame(g,()=>prepare(g),()=>{if(saveBlocked)throw Error('Restore browser saving before finalizing.');localStorage.setItem(KEY,JSON.stringify(state));},content=>download(content,`${g.id}_${kind}.csv`,'text/csv;charset=utf-8',kind));render();toast('Results exported. This game is locked; you can download its results again.');}catch(error){toast(error.message,true);}};
     if(g.finalizedAt)action();else confirm('Finalize and export?','Exporting locks this game against further edits. You can download results again. Backups do not finalize games.',action);
   }
   $('clock-speed').addEventListener('change',()=>run(()=>E.setSpeed(current(),Number($('clock-speed').value))));
@@ -160,9 +164,9 @@
     if(g.finished){run(()=>{g.finished=false;toast('Game reopened. The clock is paused.');});return;}
     confirm('Finish this game?','The clock will pause and recording will stop. You can export the full event log or reopen the game for corrections.',()=>run(()=>{E.pause(g);g.finished=true;toast('Final whistle. Your event log is ready to export.');}));
   });
-  function download(text,name,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+  function download(text,name,type,kind){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();if(kind)track('download',{kind});setTimeout(()=>URL.revokeObjectURL(url),60000);}
   $('export-button').addEventListener('click',()=>exportResults('events',g=>E.csv(g)));
-  $('backup-button').addEventListener('click',()=>download(JSON.stringify(E.backup(state),null,2),`courtside-backup-${new Date().toISOString().slice(0,10)}.json`,'application/json'));
+  $('backup-button').addEventListener('click',()=>download(JSON.stringify(E.backup(state),null,2),`courtside-backup-${new Date().toISOString().slice(0,10)}.json`,'application/json','backup'));
   $('recovery-button').addEventListener('click',()=>download(rawSaved||'',`courtside-original-recovery-${new Date().toISOString().slice(0,10)}.txt`,'text/plain;charset=utf-8'));
   $('restore-button').addEventListener('click',()=>$('restore-file').click());
   $('restore-file').addEventListener('change',async()=>{
@@ -242,7 +246,7 @@
     else {const old=g.roster;g.roster=d.players;try{T.configure(g,[...d.squad],[...d.five]);}catch(e){g.roster=old;throw e;}}
     $('lineup-dialog').close();lineupDraft=null;toast('Five players ready. Start or resume the clock when play begins.');
   }));
-  $('roster-export-button').addEventListener('click',()=>run(()=>download(T.rosterCSV(state.roster),'university_roster.csv','text/csv;charset=utf-8')));
+  $('roster-export-button').addEventListener('click',()=>run(()=>download(T.rosterCSV(state.roster),'university_roster.csv','text/csv;charset=utf-8','roster')));
   $('roster-import-button').addEventListener('click',()=>$('roster-file').click());
   $('roster-file').addEventListener('change',async()=>{
     const file=$('roster-file').files[0];if(!file)return;

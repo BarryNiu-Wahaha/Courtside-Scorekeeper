@@ -8,6 +8,16 @@ ROOT=Path(__file__).resolve().parents[1]
 def snapshot():
     return dict(schema_version=1,revision=3,generated_at="2026-09-08T12:00:00Z",roster=[],games=[],secret="never-publish")
 class PublicationTests(unittest.TestCase):
+    def test_tracking_is_hosted_only_and_explicitly_enabled(self):
+        with tempfile.TemporaryDirectory() as d:
+            dest=Path(d)
+            build_artifact(ROOT,dest,snapshot(),'https://api.example',visitor_tracking=True)
+            self.assertTrue(json.loads((dest/'config.js').read_text().split('=',1)[1].strip().rstrip(';'))['visitorTrackingEnabled'])
+            front=(dest/'Front.html').read_text(encoding='utf-8')
+            self.assertLess(front.index('src="visitor-tracking.js"'),front.index('/* CourtSide game engine')) if '/* CourtSide game engine' in front else self.assertIn('src="visitor-tracking.js"',front)
+            self.assertNotIn('src="visitor-tracking.js"',(ROOT/'Front.html').read_text(encoding='utf-8'))
+            build_artifact(ROOT,dest,snapshot(),'https://api.example')
+            self.assertFalse(json.loads((dest/'config.js').read_text().split('=',1)[1].strip().rstrip(';'))['visitorTrackingEnabled'])
     def test_artifact_contains_only_allowlisted_public_files(self):
         with tempfile.TemporaryDirectory() as d:
             build_artifact(ROOT,Path(d),snapshot(),"https://api.example")

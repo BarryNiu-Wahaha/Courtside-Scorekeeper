@@ -13,7 +13,7 @@ STAT_KEYS = ("points","fgm","fga","threeMade","threeAttempts","ftm","fta","offen
 ROSTER_KEYS = ("player_id","player_name","jersey_number","enrollment_year","status_override")
 GAME_KEYS = ("game_id","game_date","opponent","home_points","away_points","coverage","category","duration_ms","stats_complete")
 PLAYER_KEYS = ("player_id","player_name","jersey_number","played_ms","played_count","starter_count","designated_count","plus_minus","plus_minus_status")
-PUBLIC_FILES = ("index.html","admin.html","site.css","public.js","admin.js","analytics.js","dashboard.css")
+PUBLIC_FILES = ("index.html","admin.html","site.css","public.js","admin.js","analytics.js","dashboard.css","visitor-tracking.js")
 
 def _api_url(value):
     url = urlsplit(value)
@@ -46,17 +46,17 @@ def public_snapshot(snapshot):
         result["games"].append(clean)
     return result
 
-def build_artifact(root, destination, snapshot, api_base):
+def build_artifact(root, destination, snapshot, api_base, visitor_tracking=False):
     root, destination = Path(root), Path(destination)
     api_base = _api_url(api_base)
     destination.mkdir(parents=True, exist_ok=True)
     for name in PUBLIC_FILES:
         shutil.copyfile(root/"site"/name, destination/name)
     shutil.copyfile(root/"src"/"remote.js", destination/"remote.js")
-    config = "globalThis.COURTSIDE_CONFIG = " + json.dumps({"apiBase":api_base}).replace("<", "\\u003c") + ";"
+    config = "globalThis.COURTSIDE_CONFIG = " + json.dumps({"apiBase":api_base,"visitorTrackingEnabled":visitor_tracking is True}).replace("<", "\\u003c") + ";"
     (destination/"config.js").write_text(config+"\n", encoding="utf-8")
     frontend = (root/"Front.html").read_text(encoding="utf-8")
-    frontend = frontend.replace("<script>", "<script>"+config+"\n", 1)
+    frontend = frontend.replace("<script>", '<script src="config.js"></script><script src="visitor-tracking.js"></script><script>'+config+"\n", 1)
     (destination/"Front.html").write_text(frontend, encoding="utf-8")
     (destination/"data").mkdir(exist_ok=True)
     (destination/"data"/"stats.json").write_text(json.dumps(public_snapshot(snapshot),ensure_ascii=False,separators=(",",":")),encoding="utf-8")
@@ -67,7 +67,7 @@ def build_artifact(root, destination, snapshot, api_base):
         "/config.js\n  Cache-Control: public, max-age=0, must-revalidate\n",encoding="utf-8")
 
 class CloudflarePublisher:
-    def __init__(self, root, api_base, project, account, token, *, runner=subprocess.run, executable="wrangler"):
+    def __init__(self, root, api_base, project, account, token, *, runner=subprocess.run, executable="wrangler", visitor_tracking=False):
         self.root, self.api_base = Path(root), _api_url(api_base)
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,57}",project):
             raise ValueError("Invalid Cloudflare Pages project name.")
@@ -75,6 +75,7 @@ class CloudflarePublisher:
             raise ValueError("Cloudflare account and token are required.")
         self.project, self.account, self.token = project, account, token
         self.runner, self.executable = runner, executable
+        self.visitor_tracking = visitor_tracking
 
     @classmethod
     def from_env(cls):
@@ -82,11 +83,11 @@ class CloudflarePublisher:
         values = [os.environ.get(key,"") for key in keys]
         if not all(values):
             return None
-        return cls(ROOT,*values,executable=os.environ.get("WRANGLER_BIN","wrangler"))
+        return cls(ROOT,*values,executable=os.environ.get("WRANGLER_BIN","wrangler"),visitor_tracking=os.getenv('VISITOR_TRACKING_ENABLED','').lower()=='true')
 
     def __call__(self, snapshot):
         with tempfile.TemporaryDirectory(prefix="courtside-publish-") as directory:
-            build_artifact(self.root, Path(directory), snapshot, self.api_base)
+            build_artifact(self.root, Path(directory), snapshot, self.api_base, self.visitor_tracking)
             command = [self.executable,"pages","deploy",directory,"--project-name",self.project,"--branch","main","--commit-dirty=true"]
             # Restrict child environment to runtime needs and deployment credentials.
             env = {key:value for key,value in os.environ.items() if key.upper() in
@@ -105,7 +106,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True)
     parser.add_argument("--api-base", required=True)
     parser.add_argument("--snapshot")
+    parser.add_argument("--visitor-tracking", action="store_true")
     args = parser.parse_args()
     data = json.loads(Path(args.snapshot).read_text(encoding="utf-8")) if args.snapshot else dict(schema_version=1,revision=0,generated_at=None,roster=[],games=[])
-    build_artifact(ROOT,Path(args.output),data,args.api_base)
+    build_artifact(ROOT,Path(args.output),data,args.api_base,args.visitor_tracking)
     print("Public site built. No deployment performed.")

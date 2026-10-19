@@ -1,5 +1,9 @@
 (()=>{
   'use strict';
+  let visitor;
+  try { const c=globalThis.COURTSIDE_CONFIG||{}; visitor=globalThis.CourtSideVisitor?.create({apiBase:c.apiBase,enabled:c.visitorTrackingEnabled,page:'dashboard'}); } catch {}
+  const track=(event,properties)=>{try{visitor?.track(event,properties);}catch{}};
+
   const A=CourtSideAnalytics,$=id=>document.getElementById(id);
   const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
   const fmt=(v,d=1)=>v==null||!Number.isFinite(v)?'—':v.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -21,6 +25,7 @@
   }
   function selectView(view,focus=false){
     if(!['overview','players','games'].includes(view))view='overview';
+    if(document.body.dataset.view!==view)track('view_change',{view});
     document.body.dataset.view=view;
     for(const link of document.querySelectorAll('.main-nav a')){
       const selected=link.hash==='#'+view;
@@ -157,7 +162,7 @@
     }));
     if(!games.length)$('game-list').append(empty('No games in this period','Try a different period or include both game categories.'));
   }
-  function openPlayer(id){playerId=id;renderPlayer(id);if(!$('player-dialog').open){$('player-dialog').showModal();animateIn($('player-dialog'),'sheet');}}
+  function openPlayer(id){track('player_open',{player_id:id});playerId=id;renderPlayer(id);if(!$('player-dialog').open){$('player-dialog').showModal();animateIn($('player-dialog'),'sheet');}}
   function renderPlayer(id){
     const known=(snapshot.roster||[]).find(p=>p.player_id===id)||snapshot.games.flatMap(g=>g.players||[]).find(p=>p.player_id===id);
     const p=summary.players.find(p=>p.player_id===id)||(known?{...known,appearances:0,played_ms:null,partial:false,stats:A.empty(),averages:{},shooting:A.shooting(A.empty()),games:[]}:null);if(!p){$('player-dialog').close();return;}
@@ -173,6 +178,7 @@
     if(!p.games.length)$('player-games').replaceChildren(empty('No games for this player','Choose another season, year or their entire career.'));
   }
   function openGame(g){
+    track('game_open',{game_id:g.game_id});
     $('box-title').textContent='vs '+g.opponent;
     $('box-note').textContent=`${g.game_date} · ${category(g)} · ${A.periodLabel(A.season(g.game_date))} · ${g.coverage==='complete'?'Complete minute tracking':'Partial or unavailable minutes'}`;
     $('game-score').replaceChildren(el('span','Our team'),el('strong',`${g.home_points} – ${g.away_points}`),el('span',g.opponent));
@@ -198,9 +204,9 @@
       $('published').textContent=data.generated_at?'Last published '+new Date(data.generated_at).toLocaleString():'No games published yet.';render();
     }catch(e){$('load-status').textContent=e.message||'Could not load statistics.';$('published').textContent='Results unavailable';$('retry-load').hidden=false;}
   }
-  $('period-select').onchange=render;$('category-select').onchange=render;$('player-search').oninput=()=>{if(summary)renderPlayers();};
+  $('period-select').onchange=()=>{track('filter_change',{control:'period',value:$('period-select').value});render();};$('category-select').onchange=()=>{track('filter_change',{control:'category',value:$('category-select').value});render();};$('player-search').oninput=()=>{if(summary)renderPlayers();};
   for(const group of ['appeared','other'])$('players-'+group).onclick=()=>{playerGroup=group;if(summary)renderPlayers();};
-  $('profile-period').onchange=()=>{$('period-select').value=$('profile-period').value;render();};$('profile-category').onchange=()=>{$('category-select').value=$('profile-category').value;render();};
+  $('profile-period').onchange=()=>{$('period-select').value=$('profile-period').value;track('filter_change',{control:'period',value:$('profile-period').value});render();};$('profile-category').onchange=()=>{$('category-select').value=$('profile-category').value;track('filter_change',{control:'category',value:$('profile-category').value});render();};
   $('leader-total').onclick=()=>{leaderMode='total';if(summary)renderLeaders();};$('leader-average').onclick=()=>{leaderMode='average';if(summary)renderLeaders();};
   reducedMotion.addEventListener('change',()=>{if(reducedMotion.matches)document.getAnimations().forEach(a=>a.cancel());});
   for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('close',()=>dialog.getAnimations().forEach(a=>a.cancel()));
