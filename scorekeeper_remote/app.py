@@ -6,7 +6,7 @@ from .auth import Authenticator
 from .bundles import validate_upload
 from .repository import Conflict, MemoryRepository
 
-def create_app(repository=None,publisher=None,config=None):
+def create_app(repository=None,publisher=None,config=None,visitor_repository=None):
     app=Flask(__name__); app.config.update(MAX_CONTENT_LENGTH=2*1024*1024,SECRET_KEY=os.getenv('SECRET_KEY',''),SCOREKEEPER_PIN=os.getenv('SCOREKEEPER_PIN',''),ADMIN_PIN=os.getenv('ADMIN_PIN',''),SESSION_TTL=3600,ALLOWED_ORIGINS=os.getenv('ALLOWED_ORIGINS',''))
     if config:app.config.update(config)
     auth=Authenticator(app.config['SECRET_KEY'],app.config['SCOREKEEPER_PIN'],app.config['ADMIN_PIN'],app.config['SESSION_TTL'])
@@ -25,6 +25,8 @@ def create_app(repository=None,publisher=None,config=None):
         if not current:return None,error('authentication required',401)
         if required=='admin' and current!='admin':return None,error('admin role required',403)
         return current,None
+    from .visitor_routes import register_visitor_routes
+    register_visitor_routes(app,visitor_repository,role)
     def body():
         value=request.get_json(silent=True)
         if not isinstance(value,dict):raise ValidationError('JSON object required')
