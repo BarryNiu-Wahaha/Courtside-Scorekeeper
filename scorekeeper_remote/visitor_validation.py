@@ -42,7 +42,7 @@ def properties(name, value):
         if control == 'category':
             if selection not in ('all','official','friendly'): invalid()
         elif control == 'period':
-            if not re.fullmatch(r'(career|year:20\d{2}|season:20\d{2}:(spring|fall))', selection): invalid()
+            if not re.fullmatch(r'(career|(year|spring|fall):20\d{2})', selection): invalid()
         else: invalid()
     return dict(value)
 
