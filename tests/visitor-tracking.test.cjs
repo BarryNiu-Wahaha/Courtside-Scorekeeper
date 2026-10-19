@@ -55,3 +55,21 @@ test('expired visitor ID is replaced, never extended',async()=>{
   h.clockJump(91*86400000);h.instance.track('game_open',{game_id:'G1'});await h.advance(10000);
   assert.notEqual(h.sent.at(-1).events.at(-1).visitor_id,old);h.instance.destroy();
 });
+test('rapid input accumulates time without evicting page views or real actions',async()=>{
+  const h=harness();h.instance.track('player_open',{player_id:'P1'});
+  for(let i=0;i<110;i++){await h.advance(50);h.fire('keydown');}
+  await h.advance(4500);const events=h.sent.flatMap(x=>x.events);
+  assert.equal(events.filter(e=>e.event==='page_view').length,1);
+  assert.equal(events.filter(e=>e.event==='player_open').length,1);h.instance.destroy();
+});
+test('hiding flushes the final visible interval',async()=>{
+  const h=harness();await h.advance(5000);h.doc.visibilityState='hidden';h.fire('visibilitychange');await new Promise(setImmediate);
+  const active=h.sent.flatMap(x=>x.events).filter(e=>e.event==='engagement').reduce((sum,e)=>sum+e.properties.active_ms,0);
+  assert.equal(active,5000);h.instance.destroy();
+});
+test('showing an idle tab does not invent new interaction',async()=>{
+  const h=harness();await h.advance(65000);h.doc.visibilityState='hidden';h.fire('visibilitychange');await new Promise(setImmediate);
+  const sum=()=>h.sent.flatMap(x=>x.events).filter(e=>e.event==='engagement').reduce((sum,e)=>sum+e.properties.active_ms,0);
+  const before=sum();h.doc.visibilityState='visible';h.fire('visibilitychange');await h.advance(15000);await h.advance(10000);
+  assert.equal(sum(),before);h.instance.destroy();
+});

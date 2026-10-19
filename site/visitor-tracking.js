@@ -26,6 +26,7 @@
     let url;try {url=new URL(config.apiBase);if(url.username||url.password||url.search||url.hash||!['https:','http:'].includes(url.protocol))return noop;}catch{return noop;}
     if(config.enabled!==true||!doc||!transport||!['dashboard','scorekeeper'].includes(config.page)||read(OPTOUT)==='1'||nav.globalPrivacyControl||nav.doNotTrack==='1'||win.doNotTrack==='1') return noop;
     let visitor,session,expiry,lastAction=now(),lastInput=mono(),lastTick=mono(),active=true;
+    let visible=doc.visibilityState==='visible',activeMilliseconds=0;
     const timers=new Set(), listeners=[];let queue=[],pending=null,retries=0,retryAt=0,controller=null,notice=null;
     function later(fn,ms){const id=schedule(()=>{timers.delete(id);if(active)fn();},ms);timers.add(id);return id;}
     function listen(target,key,fn){if(target?.addEventListener){target.addEventListener(key,fn);listeners.push([target,key,fn]);}}
@@ -70,17 +71,28 @@
       if(retry&&retries<3){retries++;const delay=Math.max(wait,1000*2**(retries-1));retryAt=mono()+delay;later(()=>flush(),delay);}
       else {pending=null;retryAt=0;}
     }
+    function accrue(){
+      const t=mono(),elapsed=Math.max(0,Math.min(t,lastInput+60000)-lastTick);lastTick=t;
+      if(visible&&now()<expiry)activeMilliseconds=Math.min(60000,activeMilliseconds+elapsed);
+    }
     function engagement(){
-      const t=mono(), elapsed=Math.max(0,Math.min(t,lastInput+60000)-lastTick);lastTick=t;
-      if(doc.visibilityState==='visible'&&now()<expiry&&elapsed>0){try{enqueue('engagement',{active_ms:Math.min(15000,Math.floor(elapsed))});}catch{}}
+      accrue();
+      // Input accrues duration; only scheduled/lifecycle flushes create records.
+      while(activeMilliseconds>=1){const amount=Math.min(15000,Math.floor(activeMilliseconds));activeMilliseconds-=amount;try{enqueue('engagement',{active_ms:amount});}catch{}}
     }
     function input(){
       // Finish the preceding window before marking new input, avoiding credit for idle time.
-      engagement();lastInput=mono();
-      if(now()-lastAction>=1800000){session=uuid();enqueue('page_view',{});}
+      accrue();
+      if(now()>=expiry){activeMilliseconds=0;identity();enqueue('page_view',{});}
+      else if(now()-lastAction>=1800000){engagement();session=uuid();enqueue('page_view',{});}
+      lastInput=mono();
       lastAction=now();
     }
-    function visibility(){if(doc.visibilityState==='hidden'){lastTick=mono();flush(true);}else {lastTick=mono();lastInput=mono();}}
+    function visibility(){
+      // Account for the interval under the previous visibility state first.
+      accrue();visible=doc.visibilityState==='visible';
+      if(!visible){engagement();flush(true);}
+    }
     function periodicFlush(){flush();later(periodicFlush,10000);}
     function periodicEngagement(){engagement();later(periodicEngagement,15000);}
     function destroy(){active=false;queue=[];pending=null;controller?.abort();for(const id of timers)cancel(id);timers.clear();for(const [target,key,fn] of listeners)target.removeEventListener(key,fn);notice?.remove();}

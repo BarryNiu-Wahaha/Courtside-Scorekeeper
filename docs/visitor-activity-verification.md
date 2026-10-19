@@ -4,7 +4,7 @@ Feature branch: `feature/visitor-activity`, isolated under `.local/visitor-activ
 
 ## Executed checks
 
-- JavaScript: 82 tests passed, including real headless Edge tests of dashboard instrumentation and admin rendering/logout races.
+- JavaScript: 85 tests passed, including real headless Edge tests of dashboard instrumentation and admin rendering/logout races.
 - Python discovery: 88 tests run, 57 passed and 31 database tests skipped when connection variables are absent. Database checks were run separately below; skips are not treated as passes.
 - MongoDB: all 7 isolated integration tests passed against a loopback-only MongoDB 8.0.17 server with PyMongo 4.19.0. Covered real aggregation results, duplicate/concurrent retries, partial batch retry, collection validation, repeated setup, TTL configuration, retention exclusion, timeline order, and pagination.
 - MySQL: all 24 existing isolated integration tests passed. No production database used.
@@ -28,4 +28,8 @@ Configure a dedicated Atlas database/user, private backend connection settings a
 
 Screenshots with synthetic records are in ignored `tests/artifacts/visitor-admin-desktop.png` and `visitor-admin-mobile.png`. They demonstrate the local implementation, not real visitor counts. Setup and operation: [visitor activity guide](visitor-activity.md).
 
-Independent review is the final implementation gate; its result and any fixes will be recorded below before handoff.
+## Independent review
+
+A fresh reviewer examined the whole feature and reproduced three P2 collector issues: frequent input could flood the queue with engagement events, hiding a page could drop its last active interval, and showing an idle page could incorrectly renew activity eligibility. All three received failing regression tests before fixes; all 12 collector tests and the complete 85-test JavaScript suite pass afterward. Input now accumulates duration without emitting a record per interaction, visibility changes account for the previous visible interval, and becoming visible does not fabricate a new interaction.
+
+No minor findings were deferred. The reviewer declined to judge production Atlas connectivity/capacity and deployed failure isolation; those remain explicit release checks because local evidence cannot establish them. No second review was requested; fixes are covered by the reproduced regressions and full-suite verification.

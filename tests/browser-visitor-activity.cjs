@@ -24,6 +24,7 @@ let b;
   await b.evaluate("document.querySelector('#admin-pin').value='99999999';document.querySelector('#login-form').requestSubmit()");
   await b.until("document.querySelector('[data-metric=visits]')?.textContent==='2'");
   await b.evaluate("document.querySelector('.visitor-session').click()");await b.until("document.querySelector('#visitor-activity ol li')");
+  await b.evaluate("document.querySelector('#visitor-activity').scrollIntoView()");
   fs.writeFileSync(path.join(artifacts,'visitor-admin-mobile.png'),Buffer.from((await b.send('Page.captureScreenshot',{format:'png'})).data,'base64'));
   await b.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   await b.evaluate("document.querySelector('#visitor-activity').scrollIntoView()");
