@@ -53,6 +53,7 @@ def validate_batch(payload, now):
     output = []
     for row in rows:
         if not isinstance(row, dict) or set(row) != FIELDS: invalid()
+        if any(not isinstance(row[k],str) for k in FIELDS-{'properties'}): invalid()
         for key in ('event_id', 'visitor_id', 'session_id'): identifier(row[key])
         if row['page'] not in ('dashboard','scorekeeper'): invalid()
         if row['device'] not in ('mobile','tablet','desktop','unknown'): invalid()
@@ -67,7 +68,8 @@ def validate_batch(payload, now):
     return output
 
 def validate_report_range(args, now):
-    end = timestamp(args['end']) if args.get('end') else now
+    # Include the current millisecond in a fresh report; BSON dates have ms precision.
+    end = timestamp(args['end']) if args.get('end') else now+timedelta(milliseconds=1)
     start = timestamp(args['start']) if args.get('start') else end-timedelta(days=7)
     if end <= start or end-start > RETENTION or end > now+timedelta(days=1): invalid()
     return max(start, now-RETENTION), end

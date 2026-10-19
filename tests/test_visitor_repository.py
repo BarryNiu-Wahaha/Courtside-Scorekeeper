@@ -44,3 +44,15 @@ class RepositoryTests(unittest.TestCase):
     def test_invalid_cursor(self):
         from scorekeeper_pipeline.validation import ValidationError
         with self.assertRaises(ValidationError): self.repo.sessions(self.start,self.end,cursor='invalid')
+
+    def test_timeline_preserves_action_time_within_one_batch(self):
+        rows=self.rows()[:2]
+        rows[0]['event_id']='ffffffff-ffff-4fff-8fff-ffffffffffff'
+        rows[1]['event_id']='00000000-0000-4000-8000-000000000000'
+        rows[0]['occurred_at']=NOW-timedelta(seconds=10)
+        rows[1]['occurred_at']=NOW-timedelta(seconds=1)
+        self.repo.insert_events(rows)
+        first=self.repo.timeline(rows[0]['session_id'],self.start,self.end,limit=1)
+        second=self.repo.timeline(rows[0]['session_id'],self.start,self.end,cursor=first['next_cursor'],limit=1)
+        self.assertEqual(first['items'][0]['event_id'],rows[0]['event_id'])
+        self.assertEqual(second['items'][0]['event_id'],rows[1]['event_id'])

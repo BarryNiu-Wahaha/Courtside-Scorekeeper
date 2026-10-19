@@ -13,7 +13,7 @@ STAT_KEYS = ("points","fgm","fga","threeMade","threeAttempts","ftm","fta","offen
 ROSTER_KEYS = ("player_id","player_name","jersey_number","enrollment_year","status_override")
 GAME_KEYS = ("game_id","game_date","opponent","home_points","away_points","coverage","category","duration_ms","stats_complete")
 PLAYER_KEYS = ("player_id","player_name","jersey_number","played_ms","played_count","starter_count","designated_count","plus_minus","plus_minus_status")
-PUBLIC_FILES = ("index.html","admin.html","site.css","public.js","admin.js","analytics.js","dashboard.css","visitor-tracking.js")
+PUBLIC_FILES = ("index.html","admin.html","site.css","public.js","admin.js","analytics.js","dashboard.css","visitor-tracking.js","visitor-admin.js")
 
 def _api_url(value):
     url = urlsplit(value)

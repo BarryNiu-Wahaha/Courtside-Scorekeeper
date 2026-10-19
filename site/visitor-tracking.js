@@ -26,7 +26,7 @@
     let url;try {url=new URL(config.apiBase);if(url.username||url.password||url.search||url.hash||!['https:','http:'].includes(url.protocol))return noop;}catch{return noop;}
     if(config.enabled!==true||!doc||!transport||!['dashboard','scorekeeper'].includes(config.page)||read(OPTOUT)==='1'||nav.globalPrivacyControl||nav.doNotTrack==='1'||win.doNotTrack==='1') return noop;
     let visitor,session,expiry,lastAction=now(),lastInput=mono(),lastTick=mono(),active=true;
-    const timers=new Set(), listeners=[];let queue=[],pending=null,retries=0,controller=null,notice=null;
+    const timers=new Set(), listeners=[];let queue=[],pending=null,retries=0,retryAt=0,controller=null,notice=null;
     function later(fn,ms){const id=schedule(()=>{timers.delete(id);if(active)fn();},ms);timers.add(id);return id;}
     function listen(target,key,fn){if(target?.addEventListener){target.addEventListener(key,fn);listeners.push([target,key,fn]);}}
     function identity(){
@@ -54,7 +54,7 @@
       }catch{} // Optional analytics must never interrupt the action being recorded.
     }
     async function flush(exit=false){
-      if(!active||controller)return;
+      if(!active||controller||mono()<retryAt)return;
       if(!pending){pending=queue.splice(0,20);retries=0;}
       if(!pending.length){pending=null;return;}
       controller=new AbortController();const current=controller;
@@ -67,8 +67,8 @@
       }catch{retry=true;}
       finally{cancel(timeout);timers.delete(timeout);if(controller===current)controller=null;}
       if(!active)return;
-      if(retry&&retries<3){retries++;later(()=>flush(),Math.max(wait,1000*2**(retries-1)));}
-      else pending=null;
+      if(retry&&retries<3){retries++;const delay=Math.max(wait,1000*2**(retries-1));retryAt=mono()+delay;later(()=>flush(),delay);}
+      else {pending=null;retryAt=0;}
     }
     function engagement(){
       const t=mono(), elapsed=Math.max(0,Math.min(t,lastInput+60000)-lastTick);lastTick=t;

@@ -80,9 +80,10 @@ class MemoryVisitorRepository:
 
     def timeline(self, session_id, start, end, cursor=None, limit=200):
         boundary=decode_cursor(cursor)
-        rows=[r for r in self._rows(start,end) if r['session_id']==session_id and (not boundary or (r['received_at'],r['event_id'])>boundary)]
+        rows=[r for r in self._rows(start,end) if r['session_id']==session_id and (not boundary or (r['occurred_at'],r['event_id'])>boundary)]
+        rows.sort(key=lambda r:(r['occurred_at'],r['event_id']))
         items=[{**{k:r[k] for k in ('event_id','event','page','properties')},'occurred_at':iso(r['occurred_at']),'received_at':iso(r['received_at'])} for r in rows]
-        return page(items,limit,lambda r:(timestamp(r['received_at']),r['event_id']))
+        return page(items,limit,lambda r:(timestamp(r['occurred_at']),r['event_id']))
 
 class MongoVisitorRepository:
     def __init__(self, client, database):
@@ -110,6 +111,7 @@ class MongoVisitorRepository:
             self.database.command('collMod','visitor_events',validator={'$jsonSchema':schema},validationLevel='strict')
         self.collection.create_index('received_at',expireAfterSeconds=7776000,name='visitor_retention')
         self.collection.create_index([('session_id',1),('received_at',1),('_id',1)])
+        self.collection.create_index([('session_id',1),('occurred_at',1),('_id',1)])
         self.collection.create_index([('visitor_id',1),('received_at',1)])
 
     def insert_events(self, events):
@@ -161,7 +163,7 @@ class MongoVisitorRepository:
     def timeline(self,session_id,start,end,cursor=None,limit=200):
         boundary=decode_cursor(cursor)
         match={**self._match(start,end),'session_id':session_id}
-        if boundary: match['$or']=[{'received_at':{'$gt':boundary[0]}},{'received_at':boundary[0],'_id':{'$gt':boundary[1]}}]
-        rows=self.collection.find(match,{'event_id':1,'event':1,'page':1,'properties':1,'occurred_at':1,'received_at':1}).sort([('received_at',1),('_id',1)]).limit(limit+1).max_time_ms(5000)
+        if boundary: match['$or']=[{'occurred_at':{'$gt':boundary[0]}},{'occurred_at':boundary[0],'_id':{'$gt':boundary[1]}}]
+        rows=self.collection.find(match,{'event_id':1,'event':1,'page':1,'properties':1,'occurred_at':1,'received_at':1}).sort([('occurred_at',1),('_id',1)]).limit(limit+1).max_time_ms(5000)
         items=[{**{k:r[k] for k in ('event_id','event','page','properties')},'occurred_at':iso(r['occurred_at']),'received_at':iso(r['received_at'])} for r in rows]
-        return page(items,limit,lambda r:(timestamp(r['received_at']),r['event_id']))
+        return page(items,limit,lambda r:(timestamp(r['occurred_at']),r['event_id']))

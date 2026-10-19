@@ -3,12 +3,12 @@ import unittest
 from uuid import uuid4
 from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
-from test_visitor_repository import RepositoryTests
+import test_visitor_repository
 from test_visitor_validation import NOW
 from scorekeeper_remote.visitor_repository import MongoVisitorRepository
 
 @unittest.skipUnless(os.getenv('VISITOR_TEST_MONGODB_URI'), 'isolated MongoDB URI not supplied')
-class MongoRepositoryTests(RepositoryTests):
+class MongoRepositoryTests(test_visitor_repository.RepositoryTests):
     def setUp(self):
         from pymongo import MongoClient
         self.client=MongoClient(os.environ['VISITOR_TEST_MONGODB_URI'],tz_aware=True,serverSelectionTimeoutMS=3000)

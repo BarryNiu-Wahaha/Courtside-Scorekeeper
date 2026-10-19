@@ -1,14 +1,14 @@
 import json
 import unittest
-from test_remote_api import RemoteApiTests
+import test_remote_api
 from test_visitor_validation import event
 from scorekeeper_remote.app import create_app
 from scorekeeper_remote.repository import MemoryRepository
 from scorekeeper_remote.visitor_repository import MemoryVisitorRepository
 
 class VisitorApiTests(unittest.TestCase):
-    token=RemoteApiTests.token
-    auth=RemoteApiTests.auth
+    token=test_remote_api.RemoteApiTests.token
+    auth=test_remote_api.RemoteApiTests.auth
     def setUp(self):
         self.repo=MemoryVisitorRepository()
         self.app=create_app(MemoryRepository(),lambda _:None,dict(SECRET_KEY='test-secret-32-characters-long-enough',SCOREKEEPER_PIN='12345678',ADMIN_PIN='99999999',TESTING=True,ALLOWED_ORIGINS='https://site.example'),visitor_repository=self.repo)
@@ -26,6 +26,14 @@ class VisitorApiTests(unittest.TestCase):
         self.assertEqual(result.status_code,200)
         self.assertEqual(result.json['visits'],1)
         self.assertEqual(result.headers['Cache-Control'],'no-store')
+
+    def test_immediate_summary_includes_events_received_at_current_clock_tick(self):
+        from unittest.mock import patch
+        from test_visitor_validation import NOW
+        with patch('scorekeeper_remote.visitor_routes.utcnow',return_value=NOW):
+            self.assertEqual(self.post().status_code,202)
+            result=self.client.get(self.path,headers=self.auth('admin'))
+            self.assertEqual(result.json['visits'],1)
 
     def test_origin_type_body_and_rate_limits(self):
         path='/api/visitor-events'

@@ -44,3 +44,14 @@ test('queue bounded to 100 and retries reuse IDs',async()=>{
   assert.equal(calls[0].events.length,20);assert.deepEqual(calls[0],calls[1]);for(let i=0;i<6;i++)await h.advance(10000);
   assert.ok(new Set(calls.flatMap(x=>x.events).filter(x=>x.event==='game_open').map(x=>x.event_id)).size<=100);h.instance.destroy();
 });
+test('rate-limit backoff is respected by periodic flush',async()=>{
+  let calls=0;
+  const h=harness({fetch:async()=>{calls++;return {status:429,headers:{get:()=> '60'}};}});
+  await h.advance(10000);assert.equal(calls,1);await h.advance(10000);assert.equal(calls,1);
+  await h.advance(50000);assert.equal(calls,2);h.instance.destroy();
+});
+test('expired visitor ID is replaced, never extended',async()=>{
+  const h=harness();await h.advance(10000);const old=h.sent[0].events[0].visitor_id;
+  h.clockJump(91*86400000);h.instance.track('game_open',{game_id:'G1'});await h.advance(10000);
+  assert.notEqual(h.sent.at(-1).events.at(-1).visitor_id,old);h.instance.destroy();
+});

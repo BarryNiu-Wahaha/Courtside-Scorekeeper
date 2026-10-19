@@ -21,6 +21,10 @@ class ValidationTests(unittest.TestCase):
         for row in [event(email='private'), event(properties={'search': 'private'}), event(event_id='bad')]:
             with self.assertRaises(ValidationError): self.valid(row)
 
+    def test_wrong_json_types_rejected_as_validation_errors(self):
+        for key in ('event','page','browser','device'):
+            with self.assertRaises(ValidationError): self.valid(event(**{key:{'unexpected':'value'}}))
+
     def test_batch_limits(self):
         self.assertEqual(len(validate_batch({'events': [event() for _ in range(20)]}, NOW)), 20)
         for rows in [[], [event() for _ in range(21)]]:
