@@ -1,6 +1,6 @@
 # Anonymous visitor activity
 
-Status: approved in conversation, including MongoDB and fresh server queries for admin summaries; implementation plan awaiting review.
+Status: approved and implemented locally on feature/visitor-activity; independent review fixes and local verification complete. Production deployment remains pending. See docs/superpowers/plans/2026-10-19-session-handoff.md.
 
 ## Outcome and agreed scope
 

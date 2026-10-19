@@ -1,5 +1,7 @@
 # Anonymous Visitor Activity Implementation Plan
 
+**Wrap-up status (October 19):** local implementation and independent review fixes complete. The checklists below preserve the original implementation procedure, not a fresh execution queue. Resume from `2026-10-19-session-handoff.md`; production deployment remains pending. Exact test results and known baseline failure are in `docs/visitor-activity-verification.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Collect anonymous CourtSide activity in MongoDB and expose fresh summaries and session timelines through the existing admin login.
