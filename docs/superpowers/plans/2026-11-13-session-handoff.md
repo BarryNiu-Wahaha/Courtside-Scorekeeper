@@ -54,3 +54,24 @@ and suitable user/network rules, run the documented setup/index command, then
 perform authorized integration and deployment. Start with collection disabled;
 verify a controlled visit and private report after enabling hosted publication.
 Uploading code to GitHub does not activate collection or recover past visits.
+
+## Follow-up: Atlas configured and initialized
+
+The owner created Atlas and saved Render environment settings. A fresh read-only
+check confirmed nonempty MongoDB settings, no password placeholder, and collection
+disabled. The configured dedicated database is `courtside_visitor` (singular), a
+valid name; retain this configuration rather than requiring the example spelling.
+
+Using the privately retrieved Render settings, the local client connected and
+initialized `visitor_events`. Verification found five indexes including `_id`,
+with receipt-time retention of 7,776,000 seconds (90 days). A seven-day summary
+query succeeded with zero visits. No synthetic events were inserted. Credentials
+were never output or committed, and no MySQL data was changed.
+
+These checks ran from the local computer, not from Render. Render outbound
+connectivity remains a deployment check. The service still targets `main`, and
+tracking remains disabled. Production release is still pending explicit owner
+authorization. The existing tested feature is on GitHub at
+`feature/visitor-activity`; release should include only that branch, not the
+readability refactor. Next: authorize integration/deployment, verify the deployed
+API and MongoDB reports, then enable hosted tracking and check a controlled visit.
