@@ -114,3 +114,28 @@ database, publish an empty snapshot, or assume old snapshots are current. Public
 frontend publication remains pending; no visitor collection has been established.
 Resume with `.local/visitor_release.py diagnose` using the release virtualenv,
 then check/publish/verify after basketball persistence is reachable.
+
+## Release completed after Aiven recovery
+
+The owner reported the Aiven node running. Fresh checks confirmed the live roster
+API and local MySQL connection succeeded. Saved a fresh SQL backup under root
+`.local/database-backups/20261114T033215Z`: 4,117,761 bytes, 10 games, 37 player
+records. The dump completion marker and before/after table fingerprints passed;
+this new dump has not undergone a fresh isolated restore test. Do not confuse it
+with September's pre-correction backup or reuse old migration verification flags.
+
+API-driven publication succeeded at revision 23. Verified hosted tracking=true,
+public games/roster unchanged from the pre-release snapshot, and unauthenticated
+analytics report access denied with 401. Render continues running application
+commit `47aa4ec`; newer Git commits only update operational documentation.
+
+A controlled live browser opened the public site and one player, waited for the
+collector batch, and reported no runtime exceptions. The protected backend report
+then showed one visit, one page view, and one player open. Those initial counts
+include this verification visit. No synthetic basketball game was created.
+
+The owner can now test https://courtside-team.pages.dev/ and view Visitor activity
+at https://courtside-team.pages.dev/admin.html after admin login and refresh.
+Keep root and feature AGENTS.md synchronized at milestones. Outstanding separate
+work: select and execute a basketball database migration before Aiven's announced
+December 21 MySQL free-tier retirement. No paid service upgrade is authorized.
