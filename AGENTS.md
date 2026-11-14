@@ -18,6 +18,7 @@
 - 已通过 85 项 JS 测试、57 项 Python 测试和访客浏览器端到端测试；31 项数据库测试本次跳过。已有 dashboard reduced-motion 问题未修复。
 - 访客功能已快进合并 GitHub main，Render 已部署 `47aa4ec`。后端采集配置为 true，但公开网站尚未发布新版脚本，实际采集尚未开启。
 - 用户已将 Render 出口范围加入 Atlas：Render 到 MongoDB 汇总查询现已成功，当前 0 次访问。
+- Aiven 官方 2026-11-06 公告确认 MySQL 免费层停止新建，2026-12-21 将停服并删除数据和云端备份。不要再建议新建免费 Aiven MySQL。优先恢复旧服务并导出最新数据；本地 9 月 SQL 备份早于后续修正，不能视为最新。迁移方案尚未确定，付费升级未授权。来源：https://aiven.io/docs/products/mysql/howto/mysql-free-tier-migration-options
 - 新阻塞点：网站发布接口和球员名单接口返回 503；本机连接原有 Aiven MySQL 失败（2003），其域名解析失败（11001）。已请用户在 Aiven 控制台检查并恢复原 MySQL 服务，或确认连接地址变更。尚不能断言服务被暂停或删除。
 - 公开网站尚未发布新版访客采集脚本，不能报告已开始收集。恢复 MySQL 后先验证名单接口，再 publish、verify 和受控浏览器访问。
 - 用户添加网络规则后，从根目录运行私有 `.local/visitor_release.py check`；成功后才 publish、verify，再让用户测试球员查看。不得输出私有配置。
