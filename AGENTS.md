@@ -17,5 +17,7 @@
 - MongoDB 专用数据库 `courtside_visitor` 已初始化，90 天保留索引及本机汇总查询验证通过。
 - 已通过 85 项 JS 测试、57 项 Python 测试和访客浏览器端到端测试；31 项数据库测试本次跳过。已有 dashboard reduced-motion 问题未修复。
 - 访客功能已快进合并 GitHub main，Render 已部署 `47aa4ec`。后端采集配置为 true，但公开网站尚未发布新版脚本，实际采集尚未开启。
-- 当前待处理：Render 管理员访客汇总接口返回 503，本机 MongoDB 查询正常。已请用户在 Atlas Network Access 加入 Render Connect → Outbound 的全部出口 IP 范围；原因仍待验证。
+- 用户已将 Render 出口范围加入 Atlas：Render 到 MongoDB 汇总查询现已成功，当前 0 次访问。
+- 新阻塞点：网站发布接口和球员名单接口返回 503；本机连接原有 Aiven MySQL 失败（2003），其域名解析失败（11001）。已请用户在 Aiven 控制台检查并恢复原 MySQL 服务，或确认连接地址变更。尚不能断言服务被暂停或删除。
+- 公开网站尚未发布新版访客采集脚本，不能报告已开始收集。恢复 MySQL 后先验证名单接口，再 publish、verify 和受控浏览器访问。
 - 用户添加网络规则后，从根目录运行私有 `.local/visitor_release.py check`；成功后才 publish、verify，再让用户测试球员查看。不得输出私有配置。

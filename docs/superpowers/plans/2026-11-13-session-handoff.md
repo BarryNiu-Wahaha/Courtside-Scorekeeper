@@ -97,3 +97,20 @@ not reuse stale September migration/backup state. Public snapshot reads use curl
 Python urllib received HTTP 403 while curl returned 200. No game writes or MySQL
 migrations were performed. Backend deployment is complete; public analytics
 activation and controlled browser verification remain outstanding.
+
+## Atlas network resolved; existing MySQL prevents publication
+
+The owner added `74.220.50.0/24` and `74.220.58.0/24` to Atlas and confirmed Active.
+The deployed Render admin visitor summary now succeeds (zero visits/page views).
+An authorized attempt to publish the website returned HTTP 503. Diagnosis:
+`/api/health` succeeds; `/api/roster` returns 503; local MySQL connection fails
+with error 2003 and a direct TCP connection fails DNS resolution (gaierror 11001).
+The existing Aiven hostname cannot currently be resolved. This does not establish
+whether the service is paused, removed, or has a changed endpoint.
+
+Asked the owner to inspect the original MySQL service at console.aiven.io and
+resume it if paused, or identify a changed endpoint privately. Do not replace the
+database, publish an empty snapshot, or assume old snapshots are current. Public
+frontend publication remains pending; no visitor collection has been established.
+Resume with `.local/visitor_release.py diagnose` using the release virtualenv,
+then check/publish/verify after basketball persistence is reachable.
