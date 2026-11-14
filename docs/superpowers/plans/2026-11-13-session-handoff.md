@@ -75,3 +75,25 @@ authorization. The existing tested feature is on GitHub at
 `feature/visitor-activity`; release should include only that branch, not the
 readability refactor. Next: authorize integration/deployment, verify the deployed
 API and MongoDB reports, then enable hosted tracking and check a controlled visit.
+
+## Authorized deployment progress
+
+The owner explicitly authorized merging main, deploying Render/site, enabling
+tracking, and a controlled visit. They also requested ongoing AGENTS.md updates.
+Root and feature AGENTS.md now track progress; the feature copy is committed.
+
+GitHub main fast-forwarded to `47aa4ec` without the readability refactor. Render
+deployed that exact commit and reports live. `VISITOR_TRACKING_ENABLED` is now
+true in the backend environment, but no new public site publication has occurred.
+The authenticated visitor summary returns 503 from Render, despite successful
+local MongoDB setup/query. Asked the owner to add all Render service Connect →
+Outbound IP ranges to Atlas Network Access. This is a suspected network-access
+issue, not yet a confirmed cause; the Render region is Ohio.
+
+Resume with the ignored root helper `.local/visitor_release.py check`, then
+`publish` and `verify` only after the live MongoDB query succeeds. Its separate
+state file stores release metadata and a pre-publication public snapshot. It does
+not reuse stale September migration/backup state. Public snapshot reads use curl:
+Python urllib received HTTP 403 while curl returned 200. No game writes or MySQL
+migrations were performed. Backend deployment is complete; public analytics
+activation and controlled browser verification remain outstanding.
