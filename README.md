@@ -19,7 +19,7 @@ I built CourtSide for a university basketball team to record games, maintain an 
 
 **Stack:** Python · SQL / MySQL · MongoDB · Flask · JavaScript · Docker · Render · Cloudflare Pages
 
-**Live dataset, verified November 15, 2026:** 8 published games and 37 roster records.
+
 
 ![CourtSide dashboard with team performance, player leaders, and season filters](docs/assets/dashboard-current.png)
 
